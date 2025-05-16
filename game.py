@@ -58,6 +58,7 @@ class SnakeGame:
         self.food: Optional[Point] = None
         self._place_food()
         self.frame_iteration: int = 0
+        self.frames_since_food: int = 0
 
     def _place_food(self: SnakeGame) -> None:
         """Place food at a random empty cell (≤ 79 chars per line)."""
@@ -75,15 +76,10 @@ class SnakeGame:
         self: SnakeGame,
         action: Union[np.ndarray, List[int]],
     ) -> Tuple[int, bool, int]:
-        """Advance one frame.
+        """Advance one frame and return (reward, game_over, score)."""
+        self.frame_iteration += 1  # counts total frames
+        self.frames_since_food += 1  # counts frames since last apple
 
-        Args:
-            action: One-hot [straight, right, left].
-
-        Returns:
-            (reward, game_over, current_score)
-        """
-        self.frame_iteration += 1
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -92,17 +88,22 @@ class SnakeGame:
         self._move(action)
         self.snake.insert(0, self.head)
 
-        reward: int = 0
+        # ----- default reward (living cost) -----
+        reward: float = -0.05
         game_over: bool = False
-        if self.is_collision() or self.frame_iteration > 100 * len(self.snake):
-            game_over = True
+
+        # ----- death or starvation -----
+        if self.is_collision() or self.frames_since_food > 100 * len(self.snake):
             reward = -10
+            game_over = True
             return reward, game_over, self.score
 
+        # ----- ate food -----
         if self.head == self.food:
             self.score += 1
-            reward += 10
+            reward = 10
             self._place_food()
+            self.frames_since_food = 0  # reset starvation timer
         else:
             self.snake.pop()
 
