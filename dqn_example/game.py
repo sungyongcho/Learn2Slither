@@ -29,7 +29,7 @@ BLUE2: Tuple[int, int, int] = (0, 100, 255)
 BLACK: Tuple[int, int, int] = (0, 0, 0)
 
 BLOCK_SIZE: int = 20
-SPEED: int = 20
+SPEED: int = 100
 
 
 class SnakeGame:

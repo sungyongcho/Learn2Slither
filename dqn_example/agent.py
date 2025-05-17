@@ -5,7 +5,6 @@ from collections import deque
 
 import numpy as np
 import torch
-
 from game import BLOCK_SIZE, Direction, Point, SnakeGame
 from helper import plot
 from model import LinearQNet, QTrainer
