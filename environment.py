@@ -15,7 +15,7 @@ from constants import (
 )
 
 
-class Board:
+class Environment:
     """Snake game logic on an (m x n) grid, no rendering involved."""
 
     def __init__(

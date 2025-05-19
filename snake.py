@@ -1,8 +1,8 @@
 import argparse
 
 from agent import Agent
-from board import Board
 from constants import SPEED
+from environment import Environment
 from game_interface import PygameInterface
 from helper import plot
 
@@ -14,7 +14,7 @@ def train(visualize: bool = True) -> None:
     record = 0
 
     agent = Agent()
-    board = Board()
+    board = Environment()
     interface = PygameInterface(board) if visualize else None
 
     while True:
@@ -58,7 +58,7 @@ def train(visualize: bool = True) -> None:
 
 def main():
     # TODO: without training
-    # board = Board()
+    # board = Environment()
     # interface = PygameInterface(board)
     #  interface.run()
     parser = argparse.ArgumentParser()

@@ -6,8 +6,8 @@ from collections import deque
 import numpy as np
 import torch
 
-from board import Board
 from constants import BATCH_SIZE, BLOCK_SIZE, LR, MAX_MEMORY, Direction, Pos
+from environment import Environment
 from model import LinearQNet, QTrainer
 
 
@@ -20,7 +20,7 @@ class Agent:
         self.model = LinearQNet(19, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
-    def _is_trap(self, game: Board, start_point, direction):
+    def _is_trap(self, game: Environment, start_point, direction):
         current_point = start_point
         for _ in range(3):
             if game.is_collision(current_point):
@@ -36,7 +36,7 @@ class Agent:
                 current_point = Pos(current_point.x, current_point.y + 1)
         return False  # Path is clear at least 'steps' tiles ahead
 
-    def get_state(self: Agent, game: Board) -> np.array:
+    def get_state(self: Agent, game: Environment) -> np.array:
         head: Pos = game.snake[0]
         point_l = Pos(head.x - BLOCK_SIZE, head.y)
         point_r = Pos(head.x + BLOCK_SIZE, head.y)

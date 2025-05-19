@@ -5,14 +5,14 @@ from typing import List
 
 import pygame
 
-from board import Board
 from constants import BLOCK_SIZE, SPEED, Colors
+from environment import Environment
 
 
 class PygameInterface:
     """Thin Pygame layer to visualise a :class:`Board`."""
 
-    def __init__(self, board: Board) -> None:
+    def __init__(self, board: Environment) -> None:
         pygame.init()
         self.board = board
         self.w_px = board.width * BLOCK_SIZE
