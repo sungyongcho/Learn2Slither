@@ -6,7 +6,7 @@ from typing import List
 import pygame
 
 from board import Board
-from constants import BLOCK_SIZE, Colors
+from constants import BLOCK_SIZE, SPEED, Colors
 
 
 class PygameInterface:
@@ -30,7 +30,7 @@ class PygameInterface:
             reward, game_over, score = self.board.step(action)
             self._handle_pygame_events()
             self._render()
-            self.clock.tick(fps)
+            self.clock.tick(SPEED)
             if game_over:
                 print("Game over | score:", score)
                 break

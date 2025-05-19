@@ -11,7 +11,7 @@ class Direction(Enum):
 
 
 @dataclass(frozen=True)
-class Tile:
+class Pos:
     x: int
     y: int
 
@@ -37,3 +37,12 @@ class Colors:
     BLUE1: Tuple[int, int, int] = (0, 0, 255)
     BLUE2: Tuple[int, int, int] = (0, 100, 255)
     BLACK: Tuple[int, int, int] = (0, 0, 0)
+
+
+MAX_MEMORY: int = 100_000
+
+BATCH_SIZE: int = 1000
+
+LR: float = 0.001
+
+SPEED: int = 20

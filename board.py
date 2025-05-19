@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-from constants import GREEN_APPLE_COUNT, STARVE_FACTOR, Direction, Tile
+from constants import GREEN_APPLE_COUNT, STARVE_FACTOR, Direction, Pos
 
 # ──────────────────────── Game Logic (Model) ────────────────────────────────
 
@@ -23,15 +23,15 @@ class Board:
     def reset(self) -> None:
         """Return the board to its initial state."""
         self.direction: Direction = Direction.RIGHT
-        self.head: Tile = Tile(self.width // 2, self.height // 2)
-        self.snake: List[Tile] = [
+        self.head: Pos = Pos(self.width // 2, self.height // 2)
+        self.snake: List[Pos] = [
             self.head,
-            Tile(self.head.x - 1, self.head.y),
-            Tile(self.head.x - 2, self.head.y),
+            Pos(self.head.x - 1, self.head.y),
+            Pos(self.head.x - 2, self.head.y),
         ]
         self.score: int = 0
-        self.red_apple: Optional[Tile] = None
-        self.green_apples: List[Tile] = []
+        self.red_apple: Optional[Pos] = None
+        self.green_apples: List[Pos] = []
         self._place_red_apple()
         self._place_green_apples()
         self.frame_counter: int = 0
@@ -54,7 +54,7 @@ class Board:
         grew: bool = False
 
         # collision or starvation
-        if self._is_collision() or (
+        if self.is_collision() or (
             self.frames_since_food > (STARVE_FACTOR * len(self.snake))
         ):
             return -1, True, self.score
@@ -82,10 +82,10 @@ class Board:
 
     # ── helpers ─────────────────────────────────────────────────────────────
 
-    def _random_empty_tile(self) -> Tile:
+    def _random_empty_tile(self) -> Pos:
         """Return a random tile not occupied by the snake or apples."""
         while True:
-            p = Tile(
+            p = Pos(
                 random.randrange(self.width),
                 random.randrange(self.height),
             )
@@ -103,7 +103,7 @@ class Board:
         while len(self.green_apples) < GREEN_APPLE_COUNT:
             self.green_apples.append(self._random_empty_tile())
 
-    def _is_collision(self, pt: Optional[Tile] = None) -> bool:
+    def is_collision(self, pt: Optional[Pos] = None) -> bool:
         if pt is None:
             pt = self.head
         # wall
@@ -143,4 +143,4 @@ class Board:
             case Direction.UP:
                 y -= 1
 
-        self.head = Tile(x, y)
+        self.head = Pos(x, y)
