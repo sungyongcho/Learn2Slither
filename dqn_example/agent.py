@@ -22,8 +22,77 @@ class Agent:
         self.epsilon: int = 0
         self.gamma: float = 0.9
         self.memory = deque(maxlen=MAX_MEMORY)  # popleft()
-        self.model = LinearQNet(11, 256, 3)
+        self.model = LinearQNet(19, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
+
+    def _is_trap(self, game, start_point, direction):
+        current_point = start_point
+        for _ in range(3):
+            if game.is_collision(current_point):
+                return True  # Collision detected early (trapped)
+            # Move forward
+            if direction == Direction.LEFT:
+                current_point = Point(current_point.x - BLOCK_SIZE, current_point.y)
+            elif direction == Direction.RIGHT:
+                current_point = Point(current_point.x + BLOCK_SIZE, current_point.y)
+            elif direction == Direction.UP:
+                current_point = Point(current_point.x, current_point.y - BLOCK_SIZE)
+            elif direction == Direction.DOWN:
+                current_point = Point(current_point.x, current_point.y + BLOCK_SIZE)
+        return False  # Path is clear at least 'steps' tiles ahead
+
+    def _get_directional_vision(
+        self, game: SnakeGame, direction: Direction
+    ) -> list[float]:
+        head = game.snake[0]
+        x, y = head.x, head.y
+        dx, dy = 0, 0
+
+        if direction == Direction.LEFT:
+            dx = -BLOCK_SIZE
+        elif direction == Direction.RIGHT:
+            dx = BLOCK_SIZE
+        elif direction == Direction.UP:
+            dy = -BLOCK_SIZE
+        elif direction == Direction.DOWN:
+            dy = BLOCK_SIZE
+
+        wall_hit = False
+        apple_seen = False
+        tail_seen = False
+        steps = 0
+        wall_dist = apple_dist = tail_dist = 0.0
+
+        while True:
+            x += dx
+            y += dy
+            steps += 1
+
+            if x < 0 or x >= game.width or y < 0 or y >= game.height:
+                wall_hit = True
+                wall_dist = 1.0 - ((steps - 1) * BLOCK_SIZE) / max(
+                    game.width, game.height
+                )
+                break
+
+            point = Point(x, y)
+
+            if not apple_seen and point == game.red_apple:
+                apple_seen = True
+                apple_dist = 1.0 - (steps * BLOCK_SIZE) / max(game.width, game.height)
+
+            if not tail_seen and point in game.snake[1:]:
+                tail_seen = True
+                tail_dist = 1.0 - (steps * BLOCK_SIZE) / max(game.width, game.height)
+
+            if apple_seen and tail_seen:
+                break
+
+        return [
+            wall_dist,  # inverse dist to wall
+            apple_dist if apple_seen else 0.0,  # red apple
+            tail_dist if tail_seen else 0.0,  # tail
+        ]
 
     def get_state(self: Agent, game: SnakeGame) -> np.array:
         head: Point = game.snake[0]
@@ -58,12 +127,25 @@ class Agent:
             dir_r,
             dir_u,
             dir_d,
-            game.food.x < game.head.x,
-            game.food.x > game.head.x,
-            game.food.y < game.head.y,
-            game.food.y > game.head.y,
+            # food direction
+            game.red_apple.x < game.head.x,
+            game.red_apple.x > game.head.x,
+            game.red_apple.y < game.head.y,
+            game.red_apple.y > game.head.y,
+            # adjacent squares occupied (body-awareness fix)
+            game.is_collision(point_l),
+            game.is_collision(point_r),
+            game.is_collision(point_u),
+            game.is_collision(point_d),
         ]
-
+        state.extend(
+            [
+                self._is_trap(game, point_l, Direction.LEFT),
+                self._is_trap(game, point_r, Direction.RIGHT),
+                self._is_trap(game, point_u, Direction.UP),
+                self._is_trap(game, point_d, Direction.DOWN),
+            ]
+        )
         return np.array(state, dtype=int)
 
     def remember(

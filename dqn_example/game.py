@@ -24,12 +24,16 @@ Point = namedtuple("Point", "x, y")
 # RGB colours
 WHITE: Tuple[int, int, int] = (255, 255, 255)
 RED: Tuple[int, int, int] = (200, 0, 0)
+GREEN: Tuple[int, int, int] = (0, 200, 0)
 BLUE1: Tuple[int, int, int] = (0, 0, 255)
 BLUE2: Tuple[int, int, int] = (0, 100, 255)
 BLACK: Tuple[int, int, int] = (0, 0, 0)
 
+
+GREEN_APPLE_COUNT: int = 2
+
 BLOCK_SIZE: int = 20
-SPEED: int = 100
+SPEED: int = 20
 
 
 class SnakeGame:
@@ -55,22 +59,38 @@ class SnakeGame:
             Point(self.head.x - (2 * BLOCK_SIZE), self.head.y),
         ]
         self.score: int = 0
-        self.food: Optional[Point] = None
-        self._place_food()
+        self.red_apple: Optional[Point] = None
+        self.green_apples: List[Point] = []
+        self._place_red_apple()
+        self._place_green_apple()
         self.frame_iteration: int = 0
         self.frames_since_food: int = 0
 
-    def _place_food(self: SnakeGame) -> None:
-        """Place food at a random empty cell (≤ 79 chars per line)."""
-        max_x: int = (self.w - BLOCK_SIZE) // BLOCK_SIZE
-        max_y: int = (self.h - BLOCK_SIZE) // BLOCK_SIZE
+    def _random_empty_cell(self) -> Point:
+        """Return a random grid-aligned point not occupied by snake/food."""
+        max_x = (self.w - BLOCK_SIZE) // BLOCK_SIZE
+        max_y = (self.h - BLOCK_SIZE) // BLOCK_SIZE
 
-        x: int = random.randint(0, max_x) * BLOCK_SIZE
-        y: int = random.randint(0, max_y) * BLOCK_SIZE
-        self.food = Point(x, y)
+        while True:
+            p = Point(
+                random.randint(0, max_x) * BLOCK_SIZE,
+                random.randint(0, max_y) * BLOCK_SIZE,
+            )
+            if (
+                p not in self.snake  # vacant
+                and p != self.red_apple  # not the red apple
+                and p not in self.green_apples
+            ):
+                return p  # found a free cell
 
-        if self.food in self.snake:
-            self._place_food()
+    def _place_red_apple(self) -> None:
+        """Spawn / replace the single red apple."""
+        self.red_apple = self._random_empty_cell()
+
+    def _place_green_apple(self) -> None:
+        """Append one green apple to the board."""
+        while len(self.green_apples) < GREEN_APPLE_COUNT:
+            self.green_apples.append(self._random_empty_cell())
 
     def play_step(
         self: SnakeGame,
@@ -91,6 +111,7 @@ class SnakeGame:
         # ----- default reward (living cost) -----
         reward: float = -0.05
         game_over: bool = False
+        grew: bool = False  # track whether we keep the tail
 
         # ----- death or starvation -----
         if self.is_collision() or self.frames_since_food > 100 * len(self.snake):
@@ -98,13 +119,25 @@ class SnakeGame:
             game_over = True
             return reward, game_over, self.score
 
-        # ----- ate food -----
-        if self.head == self.food:
+        # ── red apple  → no growth (tail will be dropped) ─────────────────────
+        if self.head == self.red_apple:
             self.score += 1
             reward = 10
-            self._place_food()
-            self.frames_since_food = 0  # reset starvation timer
-        else:
+            self._place_red_apple()
+            self.frames_since_food = 0
+            self.snake.pop()
+
+        # ── green apple → grow (keep tail) ────────────────────────────────────
+        elif self.head in self.green_apples:
+            self.green_apples.remove(self.head)
+            self.score += 10
+            reward = 20  # give a bigger reward if you like
+            self._place_green_apple()
+            self.frames_since_food = 0
+            grew = True  # don’t remove tail
+
+        # ── normal move (or red-apple move) → drop tail ───────────────────────
+        if not grew:
             self.snake.pop()
 
         self._update_ui()
@@ -143,8 +176,14 @@ class SnakeGame:
         pygame.draw.rect(
             self.display,
             RED,
-            pygame.Rect(self.food.x, self.food.y, BLOCK_SIZE, BLOCK_SIZE),
+            pygame.Rect(self.red_apple.x, self.red_apple.y, BLOCK_SIZE, BLOCK_SIZE),
         )
+        for green_apple in self.green_apples:
+            pygame.draw.rect(
+                self.display,
+                GREEN,
+                pygame.Rect(green_apple.x, green_apple.y, BLOCK_SIZE, BLOCK_SIZE),
+            )
         text = font.render(f"Score: {self.score}", True, WHITE)
         self.display.blit(text, [0, 0])
         pygame.display.flip()
