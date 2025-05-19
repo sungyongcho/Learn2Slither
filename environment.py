@@ -30,7 +30,9 @@ class Environment:
     def reset(self) -> None:
         """Return the board to its initial state."""
         self.direction: Direction = Direction.RIGHT
-        self.head: Pos = Pos(self.width // 2, self.height // 2)
+        self.head: Pos = Pos(
+            random.randint(0, self.width), random.randint(0, self.height)
+        )
         self.snake: List[Pos] = [
             self.head,
             Pos(self.head.x - 1, self.head.y),
