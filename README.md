@@ -1,8 +1,6 @@
 ## Learn2Slither
 
 ### TODO
-- random placement of snake
-- add grid
 - **fix the state**
 - fix rewards
     - snake eats red apple

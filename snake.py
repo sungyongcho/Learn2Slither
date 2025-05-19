@@ -7,37 +7,31 @@ from game_interface import PygameInterface
 from helper import plot
 
 
-def train(visualize: bool = True) -> None:
-    plot_scores = []
-    plot_mean_scores = []
-    total_score = 0
-    record = 0
+def train(visualize: bool = True, death_pause_ms: int = 800) -> None:
+    plot_scores, plot_mean_scores = [], []
+    total_score = record = 0
 
     agent = Agent()
     board = Environment()
-    interface = PygameInterface(board) if visualize else None
+    gui = PygameInterface(board) if visualize else None
 
     while True:
+        # -------- play one frame ----------------------------------------
         state_old = agent.get_state(board)
-        final_move = agent.get_action(state_old)
-
-        reward, done, score = board.step(final_move)
+        action = agent.get_action(state_old)
+        reward, done, score = board.step(action)
         state_new = agent.get_state(board)
 
-        agent.train_short_memory(
-            state_old,
-            final_move,
-            reward,
-            state_new,
-            done,
-        )
-        agent.remember(state_old, final_move, reward, state_new, done)
+        agent.train_short_memory(state_old, action, reward, state_new, done)
+        agent.remember(state_old, action, reward, state_new, done)
 
+        # -------- draw ---------------------------------------------------
         if visualize:
-            interface._handle_pygame_events()
-            interface._render()
-            interface.clock.tick(SPEED)
+            gui._handle_pygame_events()
+            gui._render(dead=done)  # ← pass flag
+            gui.clock.tick(SPEED)
 
+        # -------- episode finished --------------------------------------
         if done:
             board.reset()
             agent.num_games += 1
@@ -47,12 +41,11 @@ def train(visualize: bool = True) -> None:
                 record = score
                 agent.model.save()
 
-            print("Game", agent.num_games, "Score", score, "Record:", record)
+            print(f"Game {agent.num_games}  Score {score}  Record {record}")
 
             plot_scores.append(score)
             total_score += score
-            mean_score = total_score / agent.num_games
-            plot_mean_scores.append(mean_score)
+            plot_mean_scores.append(total_score / agent.num_games)
             plot(plot_scores, plot_mean_scores)
 
 

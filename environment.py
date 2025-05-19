@@ -31,7 +31,8 @@ class Environment:
         """Return the board to its initial state."""
         self.direction: Direction = Direction.RIGHT
         self.head: Pos = Pos(
-            random.randint(0, self.width), random.randint(0, self.height)
+            random.randint(0, self.width - 1),
+            random.randint(0, self.height - 1),
         )
         self.snake: List[Pos] = [
             self.head,
@@ -60,6 +61,7 @@ class Environment:
 
         reward: float = -0.5  # living cost
         grew: bool = False
+        shrink: bool = False
 
         # collision or starvation
         if self.is_collision() or (
@@ -73,6 +75,7 @@ class Environment:
             reward = -5
             self._place_red_apple()
             self.frames_since_food = 0
+            shrink = True
         # green apple
         elif self.head in self.green_apples:
             self.green_apples.remove(self.head)
@@ -83,8 +86,12 @@ class Environment:
             grew = True
 
         # drop tail if did not grow
-        if not grew:
+        if grew:
+            pass
+        else:
             self.snake.pop()
+            if shrink and len(self.snake) > 0:
+                self.snake.pop()
 
         return int(reward), False, self.score
 

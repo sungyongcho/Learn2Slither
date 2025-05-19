@@ -5,12 +5,12 @@ from typing import List
 
 import pygame
 
-from constants import BLOCK_SIZE, SPEED, Colors
+from constants import BLOCK_SIZE, Colors
 from environment import Environment
 
 
 class PygameInterface:
-    """Thin Pygame layer to visualise a :class:`Board`."""
+    """Pygame layer to visualization."""
 
     def __init__(self, board: Environment) -> None:
         pygame.init()
@@ -24,17 +24,20 @@ class PygameInterface:
 
     # ── main loop ───────────────────────────────────────────────────────────
 
-    def run(self, fps: int = 20) -> None:
-        while True:
-            action = self._random_action()  # replace with human/AI policy
-            reward, game_over, score = self.board.step(action)
-            self._handle_pygame_events()
-            self._render()
-            self.clock.tick(SPEED)
-            if game_over:
-                print("Game over | score:", score)
-                break
-        pygame.quit()
+    # def run(self, fps: int = 20) -> None:
+    #     while True:
+    #         action = self._random_action()  # replace with human/AI policy
+    #         reward, game_over, score = self.board.step(action)
+    #         self._handle_pygame_events()
+    #         if game_over:
+    #             self._render(dead=True)  # one last frame in red
+    #             pygame.time.wait(800)  # 0.8 s pause
+    #             print("Game over | score:", score)
+    #             break
+
+    #         self._render()
+    #         self.clock.tick(SPEED)
+    #     pygame.quit()
 
     # ── helpers ─────────────────────────────────────────────────────────────
 
@@ -48,29 +51,48 @@ class PygameInterface:
                 pygame.quit()
                 quit()
 
-    def _render(self) -> None:
+    def _render(self, dead: bool = False) -> None:
         bs = BLOCK_SIZE
         self.display.fill(Colors.BLACK)
-        # snake
-        for t in self.board.snake:
+
+        body_color_1 = Colors.RED1 if dead else Colors.BLUE1
+        body_color_2 = Colors.RED2 if dead else Colors.BLUE2
+        head_color_1 = Colors.RED1 if dead else Colors.YELLOW1
+        head_color_2 = Colors.RED2 if dead else Colors.YELLOW2
+
+        head, *body = self.board.snake  # unpack once
+        # head
+        # body segments
+        for seg in body:
             pygame.draw.rect(
                 self.display,
-                Colors.BLUE1,
-                pygame.Rect(t.x * bs, t.y * bs, bs, bs),
+                body_color_1,
+                pygame.Rect(seg.x * bs, seg.y * bs, bs, bs),
             )
             pygame.draw.rect(
                 self.display,
-                Colors.BLUE2,
-                pygame.Rect(t.x * bs + 4, t.y * bs + 4, 12, 12),
+                body_color_2,
+                pygame.Rect(seg.x * bs + 4, seg.y * bs + 4, bs - 8, bs - 8),
             )
 
-        # apples
+        pygame.draw.rect(
+            self.display,
+            head_color_1,
+            pygame.Rect(head.x * bs, head.y * bs, bs, bs),
+        )
+        pygame.draw.rect(
+            self.display,
+            head_color_2,
+            pygame.Rect(head.x * bs + 4, head.y * bs + 4, bs - 8, bs - 8),
+        )
+
         r = self.board.red_apple
         pygame.draw.rect(
             self.display,
             Colors.RED,
             pygame.Rect(r.x * bs, r.y * bs, bs, bs),
         )
+
         for g in self.board.green_apples:
             pygame.draw.rect(
                 self.display,
@@ -78,12 +100,27 @@ class PygameInterface:
                 pygame.Rect(g.x * bs, g.y * bs, bs, bs),
             )
 
-        # score
-        text = self.font.render(
-            f"Score: {self.board.score}",
-            True,
-            Colors.WHITE,
-        )
-        self.display.blit(text, [0, 0])
+        # ── grid ───────────────────────────
+        w_max = self.w_px - 1  # last visible pixel column
+        h_max = self.h_px - 1  # last visible pixel row
 
+        # vertical lines
+        for x in range(0, self.w_px, bs):
+            pygame.draw.line(self.display, Colors.GRAY, (x, 0), (x, h_max))
+        pygame.draw.line(
+            self.display, Colors.GRAY, (w_max, 0), (w_max, h_max)
+        )  # right edge
+
+        # horizontal lines
+        for y in range(0, self.h_px, bs):
+            pygame.draw.line(self.display, Colors.GRAY, (0, y), (w_max, y))
+        pygame.draw.line(
+            self.display, Colors.GRAY, (0, h_max), (w_max, h_max)
+        )  # bottom edge
+
+        # ── score & flip ───────────────────
+        self.display.blit(
+            self.font.render(f"Score: {self.board.score}", True, Colors.WHITE),
+            (0, 0),
+        )
         pygame.display.flip()
