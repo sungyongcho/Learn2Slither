@@ -16,8 +16,8 @@ class Pos:
     y: int
 
 
-BOARD_WIDTH: int = 20
-BOARD_HEIGHT: int = 20
+BOARD_WIDTH: int = 10
+BOARD_HEIGHT: int = 10
 
 GREEN_APPLE_COUNT: int = 2  # simultaneous green apples
 STARVE_FACTOR: int = 100  # frames before starvation per body length

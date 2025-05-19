@@ -7,7 +7,7 @@ from game_interface import PygameInterface
 from helper import plot
 
 
-def train(visualize: bool = True, death_pause_ms: int = 800) -> None:
+def train(visualize: bool = True) -> None:
     plot_scores, plot_mean_scores = [], []
     total_score = record = 0
 
