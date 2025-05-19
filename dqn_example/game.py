@@ -109,20 +109,20 @@ class SnakeGame:
         self.snake.insert(0, self.head)
 
         # ----- default reward (living cost) -----
-        reward: float = -0.05
+        reward: float = -0.5
         game_over: bool = False
         grew: bool = False  # track whether we keep the tail
 
         # ----- death or starvation -----
         if self.is_collision() or self.frames_since_food > 100 * len(self.snake):
-            reward = -10
+            reward = -1
             game_over = True
             return reward, game_over, self.score
 
         # ── red apple  → no growth (tail will be dropped) ─────────────────────
         if self.head == self.red_apple:
             self.score += 1
-            reward = 10
+            reward = -5
             self._place_red_apple()
             self.frames_since_food = 0
             self.snake.pop()
@@ -131,7 +131,7 @@ class SnakeGame:
         elif self.head in self.green_apples:
             self.green_apples.remove(self.head)
             self.score += 10
-            reward = 20  # give a bigger reward if you like
+            reward = 10
             self._place_green_apple()
             self.frames_since_food = 0
             grew = True  # don’t remove tail
@@ -221,19 +221,3 @@ class SnakeGame:
             y -= BLOCK_SIZE
 
         self.head = Point(x, y)
-
-
-if __name__ == "__main__":
-    game = SnakeGame()
-
-    while True:
-        # Replace with real control/AI input
-        random_action: List[int] = random.choice(
-            [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
-        )
-        reward, game_over, score = game.play_step(random_action)
-        if game_over:
-            break
-
-    print("Final Score", score)
-    pygame.quit()

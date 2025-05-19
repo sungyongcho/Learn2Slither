@@ -5,9 +5,10 @@ from collections import deque
 
 import numpy as np
 import torch
-from game import BLOCK_SIZE, Direction, Point, SnakeGame
 from helper import plot
 from model import LinearQNet, QTrainer
+
+from game_interface import BLOCK_SIZE, Direction, Point, SnakeGame
 
 MAX_MEMORY: int = 100_000
 
