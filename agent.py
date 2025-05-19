@@ -36,65 +36,6 @@ class Agent:
                 current_point = Pos(current_point.x, current_point.y + 1)
         return False  # Path is clear at least 'steps' tiles ahead
 
-    def _get_directional_vision(
-        self,
-        game: Board,
-        direction: Direction,
-    ) -> list[float]:
-        head = game.snake[0]
-        x, y = head.x, head.y
-        dx, dy = 0, 0
-
-        if direction == Direction.LEFT:
-            dx = -BLOCK_SIZE
-        elif direction == Direction.RIGHT:
-            dx = BLOCK_SIZE
-        elif direction == Direction.UP:
-            dy = -BLOCK_SIZE
-        elif direction == Direction.DOWN:
-            dy = BLOCK_SIZE
-
-        wall_hit = False
-        apple_seen = False
-        tail_seen = False
-        steps = 0
-        wall_dist = apple_dist = tail_dist = 0.0
-
-        while True:
-            x += dx
-            y += dy
-            steps += 1
-
-            if x < 0 or x >= game.width or y < 0 or y >= game.height:
-                wall_hit = True
-                wall_dist = 1.0 - (steps - 1) / max(game.width, game.height)
-                break
-
-            point = Pos(x, y)
-
-            if not apple_seen and point == game.red_apple:
-                apple_seen = True
-                apple_dist = (1.0 - steps) / max(
-                    game.width,
-                    game.height,
-                )
-
-            if not tail_seen and point in game.snake[1:]:
-                tail_seen = True
-                tail_dist = (1.0 - steps) / max(
-                    game.width,
-                    game.height,
-                )
-
-            if apple_seen and tail_seen:
-                break
-
-        return [
-            wall_dist,  # inverse dist to wall
-            apple_dist if apple_seen else 0.0,  # red apple
-            tail_dist if tail_seen else 0.0,  # tail
-        ]
-
     def get_state(self: Agent, game: Board) -> np.array:
         head: Pos = game.snake[0]
         point_l = Pos(head.x - BLOCK_SIZE, head.y)
@@ -150,13 +91,19 @@ class Agent:
         return np.array(state, dtype=int)
 
     def remember(
-        self: Agent, state: np.array, action, reward, next_state: np.array, done
+        self: Agent,
+        state: np.array,
+        action,
+        reward,
+        next_state: np.array,
+        done,
     ):
         self.memory.append((state, action, reward, next_state, done))
 
     def train_long_memory(self: Agent):
         if len(self.memory) > BATCH_SIZE:
-            mini_sample = random.sample(self.memory, BATCH_SIZE)  # list of tuples
+            # list of tuples
+            mini_sample = random.sample(self.memory, BATCH_SIZE)
         else:
             mini_sample = self.memory
 
@@ -167,7 +114,12 @@ class Agent:
         #     self.trainer.train_step(state, action, reward, next_state, done)
 
     def train_short_memory(
-        self: Agent, state: np.array, action, reward, next_state: np.array, done
+        self: Agent,
+        state: np.array,
+        action,
+        reward,
+        next_state: np.array,
+        done,
     ):
         self.trainer.train_step(state, action, reward, next_state, done)
 

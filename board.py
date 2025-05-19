@@ -5,20 +5,27 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-from constants import GREEN_APPLE_COUNT, STARVE_FACTOR, Direction, Pos
-
-# ──────────────────────── Game Logic (Model) ────────────────────────────────
+from constants import (
+    BOARD_HEIGHT,
+    BOARD_WIDTH,
+    GREEN_APPLE_COUNT,
+    STARVE_FACTOR,
+    Direction,
+    Pos,
+)
 
 
 class Board:
     """Snake game logic on an (m x n) grid, no rendering involved."""
 
-    def __init__(self, width: int = 20, height: int = 20) -> None:
+    def __init__(
+        self,
+        width: int = BOARD_WIDTH,
+        height: int = BOARD_HEIGHT,
+    ) -> None:
         self.width: int = width
         self.height: int = height
         self.reset()
-
-    # ── public API ──────────────────────────────────────────────────────────
 
     def reset(self) -> None:
         """Return the board to its initial state."""
@@ -50,7 +57,6 @@ class Board:
         self.snake.insert(0, self.head)
 
         reward: float = -0.5  # living cost
-        game_over: bool = False
         grew: bool = False
 
         # collision or starvation
@@ -79,8 +85,6 @@ class Board:
             self.snake.pop()
 
         return int(reward), False, self.score
-
-    # ── helpers ─────────────────────────────────────────────────────────────
 
     def _random_empty_tile(self) -> Pos:
         """Return a random tile not occupied by the snake or apples."""
