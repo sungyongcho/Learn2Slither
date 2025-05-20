@@ -55,43 +55,51 @@ class PygameInterface:
         bs = BLOCK_SIZE
         self.display.fill(Colors.BLACK)
 
-        body_color_1 = Colors.RED1 if dead else Colors.BLUE1
-        body_color_2 = Colors.RED2 if dead else Colors.BLUE2
-        head_color_1 = Colors.RED1 if dead else Colors.YELLOW1
-        head_color_2 = Colors.RED2 if dead else Colors.YELLOW2
+        # Only attempt to draw the snake if it exists
+        if self.board.snake:  # <--- Add this check
+            body_color_1 = Colors.RED1 if dead else Colors.BLUE1
+            body_color_2 = Colors.RED2 if dead else Colors.BLUE2
+            head_color_1 = Colors.RED1 if dead else Colors.YELLOW1
+            head_color_2 = Colors.RED2 if dead else Colors.YELLOW2
 
-        head, *body = self.board.snake  # unpack once
-        # head
-        # body segments
-        for seg in body:
+            head, *body = self.board.snake  # unpack once
+
+            # body segments
+            for seg in body:
+                pygame.draw.rect(
+                    self.display,
+                    body_color_1,
+                    pygame.Rect(seg.x * bs, seg.y * bs, bs, bs),
+                )
+                pygame.draw.rect(
+                    self.display,
+                    body_color_2,
+                    pygame.Rect(seg.x * bs + 4, seg.y * bs + 4, bs - 8, bs - 8),
+                )
+
+            # head
             pygame.draw.rect(
                 self.display,
-                body_color_1,
-                pygame.Rect(seg.x * bs, seg.y * bs, bs, bs),
+                head_color_1,
+                pygame.Rect(head.x * bs, head.y * bs, bs, bs),
             )
             pygame.draw.rect(
                 self.display,
-                body_color_2,
-                pygame.Rect(seg.x * bs + 4, seg.y * bs + 4, bs - 8, bs - 8),
+                head_color_2,
+                pygame.Rect(head.x * bs + 4, head.y * bs + 4, bs - 8, bs - 8),
             )
+        # If self.board.snake is empty, we simply don't draw the snake.
+        # The 'dead' flag might influence other visual elements if needed,
+        # or the screen will just show no snake.
 
-        pygame.draw.rect(
-            self.display,
-            head_color_1,
-            pygame.Rect(head.x * bs, head.y * bs, bs, bs),
-        )
-        pygame.draw.rect(
-            self.display,
-            head_color_2,
-            pygame.Rect(head.x * bs + 4, head.y * bs + 4, bs - 8, bs - 8),
-        )
-
-        r = self.board.red_apple
-        pygame.draw.rect(
-            self.display,
-            Colors.RED,
-            pygame.Rect(r.x * bs, r.y * bs, bs, bs),
-        )
+        # Draw apples (these should still be drawn even if snake is gone)
+        if self.board.red_apple:  # Check if red_apple exists
+            r = self.board.red_apple
+            pygame.draw.rect(
+                self.display,
+                Colors.RED,
+                pygame.Rect(r.x * bs, r.y * bs, bs, bs),
+            )
 
         for g in self.board.green_apples:
             pygame.draw.rect(

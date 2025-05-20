@@ -12,20 +12,34 @@ from model import LinearQNet, QTrainer
 
 
 class Agent:
-    def __init__(self: Agent) -> None:
+    def __init__(
+        self: Agent,
+        input_size: int = 27,  # Default based on your original state size
+        initial_epsilon: float = 1.0,
+        min_epsilon: float = 0.01,
+        epsilon_decay_rate: float = 0.995,
+    ) -> None:
         self.num_games: int = 0
-        self.epsilon: int = 0
-        self.gamma: float = 0.9
-        self.memory = deque(maxlen=MAX_MEMORY)  # popleft()
-        self.model = LinearQNet(11, 256, 3)
+        # Epsilon parameters for exploration-exploitation trade-off
+        self.initial_epsilon: float = initial_epsilon
+        self.min_epsilon: float = min_epsilon
+        self.epsilon_decay_rate: float = epsilon_decay_rate
+        self.epsilon: float = self.initial_epsilon  # Current epsilon
+
+        self.gamma: float = 0.9  # Discount rate
+        self.memory = deque(maxlen=MAX_MEMORY)  # popleft() when full
+
+        # IMPORTANT: Ensure input_size matches the actual number of features from get_state()
+        self.model = LinearQNet(input_size, 256, 3)  # 3 actions: straight, right, left
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
-    def _is_trap(self, game: Environment, start_point, direction):
+    def _is_trap(
+        self, game: Environment, start_point: Pos, direction: Direction
+    ) -> bool:
+        """Checks if a path in a given direction from start_point leads into a trap within 3 steps."""
         current_point = start_point
-        for _ in range(3):
-            if game.is_collision(current_point):
-                return True  # Collision detected early (trapped)
-            # Move forward
+        for _ in range(3):  # Look ahead 3 steps
+            # Move current_point one step in the given direction
             if direction == Direction.LEFT:
                 current_point = Pos(current_point.x - 1, current_point.y)
             elif direction == Direction.RIGHT:
@@ -34,175 +48,176 @@ class Agent:
                 current_point = Pos(current_point.x, current_point.y - 1)
             elif direction == Direction.DOWN:
                 current_point = Pos(current_point.x, current_point.y + 1)
-        return False  # Path is clear at least 'steps' tiles ahead
 
-    # def get_state(self: Agent, game: Environment) -> np.array:
-    #     head: Pos = game.snake[0]
-    #     point_l = Pos(head.x - 1, head.y)
-    #     point_r = Pos(head.x + 1, head.y)
-    #     point_u = Pos(head.x, head.y - 1)
-    #     point_d = Pos(head.x, head.y + 1)
+            if game.is_collision(current_point):
+                return True  # Collision detected, it's a trap
+        return False  # Path is clear for at least 3 steps
 
-    #     dir_l = game.direction == Direction.LEFT
-    #     dir_r = game.direction == Direction.RIGHT
-    #     dir_u = game.direction == Direction.UP
-    #     dir_d = game.direction == Direction.DOWN
+    def _get_apple_direction_features(self, head: Pos, apple: Pos | None) -> list[bool]:
+        """Helper to get direction features for a single apple."""
+        if apple is None:
+            return [False, False, False, False]  # Apple doesn't exist or not found
 
-    #     red_left = game.red_apple.x < game.head.x
-    #     red_right = game.red_apple.x > game.head.x
-    #     red_up = game.red_apple.y < game.head.y
-    #     red_down = game.red_apple.y > game.head.y
-    #     # -------- choose the nearest green apple --------
+        return [
+            apple.x < head.x,  # Apple is to the left
+            apple.x > head.x,  # Apple is to the right
+            apple.y < head.y,  # Apple is up
+            apple.y > head.y,  # Apple is down
+        ]
 
-    #     greens = (
-    #         game.green_apples  # if you store them in a list
-    #         if hasattr(game, "green_apples")
-    #         else [game.green_apple1, game.green_apple2]
-    #     )
-    #     nearest_green = min(
-    #         greens,
-    #         key=lambda p: abs(p.x - head.x) + abs(p.y - head.y),  # Manhattan dist
-    #     )
+    def get_state(self: Agent, game: Environment) -> np.array:
+        head: Pos = game.head  # Assuming game.head is the snake's head position
 
-    #     green_left = nearest_green.x < head.x
-    #     green_right = nearest_green.x > head.x
-    #     green_up = nearest_green.y < head.y
-    #     green_down = nearest_green.y > head.y
-    #     state = [
-    #         # danger straight
-    #         (dir_r and game.is_collision(point_r))
-    #         or (dir_l and game.is_collision(point_l))
-    #         or (dir_u and game.is_collision(point_u))
-    #         or (dir_d and game.is_collision(point_d)),
-    #         # danger right
-    #         (dir_u and game.is_collision(point_r))
-    #         or (dir_d and game.is_collision(point_l))
-    #         or (dir_l and game.is_collision(point_u))
-    #         or (dir_r and game.is_collision(point_d)),
-    #         # danger left
-    #         (dir_d and game.is_collision(point_r))
-    #         or (dir_u and game.is_collision(point_l))
-    #         or (dir_r and game.is_collision(point_u))
-    #         or (dir_l and game.is_collision(point_d)),
-    #         # move direction
-    #         dir_l,
-    #         dir_r,
-    #         dir_u,
-    #         dir_d,
-    #         # food direction
-    #         game.red_apple.x < game.head.x,
-    #         game.red_apple.x > game.head.x,
-    #         game.red_apple.y < game.head.y,
-    #         game.red_apple.y > game.head.y,
-    #         # adjacent squares occupied (body-awareness fix)
-    #         game.is_collision(point_l),
-    #         game.is_collision(point_r),
-    #         game.is_collision(point_u),
-    #         game.is_collision(point_d),
-    #     ]
-    #     state.extend(
-    #         [
-    #             self._is_trap(game, point_l, Direction.LEFT),
-    #             self._is_trap(game, point_r, Direction.RIGHT),
-    #             self._is_trap(game, point_u, Direction.UP),
-    #             self._is_trap(game, point_d, Direction.DOWN),
-    #             green_left,
-    #             green_right,
-    #             green_up,
-    #             green_down,
-    #         ]
-    #     )
-    #     return np.array(state, dtype=int)
-
-    def get_state(self, game: Environment) -> np.ndarray:
-        head: Pos = game.snake[0]
-
-        # --- 1.  immediate danger flags (4) -----------------
+        # Define points around the head (potential next cells in absolute directions)
         point_l = Pos(head.x - 1, head.y)
         point_r = Pos(head.x + 1, head.y)
         point_u = Pos(head.x, head.y - 1)
         point_d = Pos(head.x, head.y + 1)
 
-        danger = [
-            game.is_collision(point_r),  # right
-            game.is_collision(point_l),  # left
-            game.is_collision(point_u),  # up
-            game.is_collision(point_d),  # down
-        ]
+        # Current direction of the snake
+        dir_is_l = game.direction == Direction.LEFT
+        dir_is_r = game.direction == Direction.RIGHT
+        dir_is_u = game.direction == Direction.UP
+        dir_is_d = game.direction == Direction.DOWN
 
-        # --- 2.  normalised distances to the nearest apple (4) -------------
-        # choose nearest red / green (Manhattan)
-        apples = [game.red_apple] + (
-            game.green_apples
-            if hasattr(game, "green_apples")
-            else [game.green_apple1, game.green_apple2]
+        # 1. Relative Danger (3 features)
+        # Danger if moving straight (relative to current direction)
+        danger_straight = (
+            (dir_is_r and game.is_collision(point_r))
+            or (dir_is_l and game.is_collision(point_l))
+            or (dir_is_u and game.is_collision(point_u))
+            or (dir_is_d and game.is_collision(point_d))
         )
-        nearest = min(apples, key=lambda p: abs(p.x - head.x) + abs(p.y - head.y))
 
-        dx = nearest.x - head.x
-        dy = nearest.y - head.y
-        # normalise to [-1,1]
-        norm_dx = dx / (game.width // 2)
-        norm_dy = dy / (game.height // 2)
+        # Danger if turning right (relative to current direction)
+        danger_right_turn = (
+            (dir_is_u and game.is_collision(point_r))
+            or (dir_is_d and game.is_collision(point_l))
+            or (dir_is_l and game.is_collision(point_u))
+            or (dir_is_r and game.is_collision(point_d))
+        )
 
-        # --- 3.  distance to walls (4) -------------------------------------
-        dist_wall = [
-            head.x / (game.width - 1),  # left wall  (0 centre → 1 at wall)
-            (game.width - 1 - head.x) / (game.width - 1),  # right wall
-            head.y / (game.height - 1),  # top wall
-            (game.height - 1 - head.y) / (game.height - 1),  # bottom wall
+        # Danger if turning left (relative to current direction)
+        danger_left_turn = (
+            (dir_is_d and game.is_collision(point_r))
+            or (dir_is_u and game.is_collision(point_l))
+            or (dir_is_r and game.is_collision(point_u))
+            or (dir_is_l and game.is_collision(point_d))
+        )
+
+        # 2. Current Direction (4 features)
+        # dir_is_l, dir_is_r, dir_is_u, dir_is_d
+
+        # 3. Food Locations (3 apples * 4 features/apple = 12 features)
+        # Ensure your game object has red_apple, green_apple1, green_apple2 attributes
+        # and they can be None if not present.
+        red_apple_features = self._get_apple_direction_features(
+            head, getattr(game, "red_apple", None)
+        )
+        green_apple1_features = self._get_apple_direction_features(
+            head, getattr(game, "green_apple1", None)
+        )
+        green_apple2_features = self._get_apple_direction_features(
+            head, getattr(game, "green_apple2", None)
+        )
+
+        # 4. Immediate Cell Occupancy (Collision in absolute adjacent cells) (4 features)
+        collision_abs_l = game.is_collision(point_l)
+        collision_abs_r = game.is_collision(point_r)
+        collision_abs_u = game.is_collision(point_u)
+        collision_abs_d = game.is_collision(point_d)
+
+        # 5. Advanced Trap/Lookahead (Absolute directions from head) (4 features)
+        # Is there a trap if we consider moving cardinally Left from head for 3 steps?
+        trap_lookahead_l = self._is_trap(game, point_l, Direction.LEFT)
+        trap_lookahead_r = self._is_trap(game, point_r, Direction.RIGHT)
+        trap_lookahead_u = self._is_trap(game, point_u, Direction.UP)
+        trap_lookahead_d = self._is_trap(game, point_d, Direction.DOWN)
+
+        state = [
+            danger_straight,
+            danger_right_turn,
+            danger_left_turn,
+            dir_is_l,
+            dir_is_r,
+            dir_is_u,
+            dir_is_d,
+            *red_apple_features,
+            *green_apple1_features,
+            *green_apple2_features,
+            collision_abs_l,
+            collision_abs_r,
+            collision_abs_u,
+            collision_abs_d,
+            trap_lookahead_l,
+            trap_lookahead_r,
+            trap_lookahead_u,
+            trap_lookahead_d,
         ]
+        # Total: 3 + 4 + 12 + 4 + 4 = 27 features
 
-        # --- 4.  snake length mod 32 (1) -----------------------------------
-        length_mod = (len(game.snake) % 32) / 31.0  # scaled to [0,1]
-
-        # concatenate everything
-        state = danger + [norm_dx, norm_dy] + dist_wall + [length_mod]
-        return np.array(state, dtype=np.float32)
+        return np.array(state, dtype=int)
 
     def remember(
         self: Agent,
         state: np.array,
-        action,
-        reward,
+        action: list[int],
+        reward: float,
         next_state: np.array,
-        done,
-    ):
+        done: bool,
+    ) -> None:
+        """Stores experience in memory."""
         self.memory.append((state, action, reward, next_state, done))
 
-    def train_long_memory(self: Agent):
+    def train_long_memory(self: Agent) -> None:
+        """Trains the Q-network on a batch of experiences from memory."""
         if len(self.memory) > BATCH_SIZE:
-            # list of tuples
-            mini_sample = random.sample(self.memory, BATCH_SIZE)
+            mini_sample = random.sample(self.memory, BATCH_SIZE)  # list of tuples
         else:
             mini_sample = self.memory
 
+        # Unzip the batch
         states, actions, rewards, next_states, dones = zip(*mini_sample)
         self.trainer.train_step(states, actions, rewards, next_states, dones)
-        # below is same
-        # for state, action, reward, next_state, done in mini_sample:
-        #     self.trainer.train_step(state, action, reward, next_state, done)
 
     def train_short_memory(
         self: Agent,
         state: np.array,
-        action,
-        reward,
+        action: list[int],
+        reward: float,
         next_state: np.array,
-        done,
-    ):
+        done: bool,
+    ) -> None:
+        """Trains the Q-network on a single (the most recent) experience."""
         self.trainer.train_step(state, action, reward, next_state, done)
 
-    def get_action(self: Agent, state: np.array):
-        # random moves: tradoff exploration / exploitation
-        self.epsilon = 80 - self.num_games
-        final_move: list = [0, 0, 0]
-        if random.randint(0, 200) < self.epsilon:
-            move = random.randint(0, 2)
-            final_move[move] = 1
+    def get_action(self: Agent, state: np.array) -> list[int]:
+        """
+        Determines the next action using an epsilon-greedy strategy.
+        Epsilon decays exponentially with the number of games played.
+        """
+        # Calculate current epsilon based on exponential decay
+        # Epsilon starts at self.initial_epsilon and decays towards self.min_epsilon
+        self.epsilon = max(
+            self.min_epsilon,
+            self.initial_epsilon * (self.epsilon_decay_rate**self.num_games),
+        )
+
+        final_move: list = [0, 0, 0]  # [straight, right_turn, left_turn]
+
+        if (
+            random.random() < self.epsilon
+        ):  # random.random() gives float between 0.0 and 1.0
+            # Explore: take a random action
+            move_idx = random.randint(0, 2)  # 0: straight, 1: right, 2: left
+            final_move[move_idx] = 1
         else:
-            state0 = torch.tensor(state, dtype=torch.float)
-            prediction = self.model.forward(state0)
-            move: int = torch.argmax(prediction).item()
-            final_move[move] = 1
+            # Exploit: take the action with the highest Q-value
+            state_tensor = torch.tensor(state, dtype=torch.float)
+            prediction = self.model.forward(
+                state_tensor
+            )  # self.model(state_tensor) also works
+            move_idx: int = torch.argmax(prediction).item()
+            final_move[move_idx] = 1
+
         return final_move
