@@ -24,7 +24,12 @@ python-dateutil==2.9.0.post0
 setuptools==70.2.0
 six==1.17.0
 sympy==1.13.3
-torch==2.7.0+cpu
-torchaudio==2.7.0+cpu
-torchvision==0.22.0+cpu
+# PyTorch packages — platform specific
+torch==2.7.0+cpu; sys_platform == "linux"
+torchvision==0.22.0+cpu; sys_platform == "linux"
+torchaudio==2.7.0+cpu; sys_platform == "linux"
+torch==2.7.0; sys_platform == "darwin"
+torchvision==0.22.0; sys_platform == "darwin"
+torchaudio==2.7.0; sys_platform == "darwin"
 typing_extensions==4.12.2
+
