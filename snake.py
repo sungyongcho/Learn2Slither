@@ -4,10 +4,10 @@ from agent import Agent
 from constants import SPEED
 from environment import Environment
 from game_interface import PygameInterface
-from helper import plot
+from plot_graph import plot
 
 
-def train(visualize: bool = True) -> None:
+def train(sessions: int = 0, visualize: bool = True, learn: bool = True) -> None:
     plot_scores, plot_mean_scores = [], []
     total_length = record = 0
 
@@ -22,8 +22,9 @@ def train(visualize: bool = True) -> None:
         reward, done, length = board.step(action)
         state_new = agent.get_state(board)
 
-        agent.train_short_memory(state_old, action, reward, state_new, done)
-        agent.remember(state_old, action, reward, state_new, done)
+        if learn:
+            agent.train_short_memory(state_old, action, reward, state_new, done)
+            agent.remember(state_old, action, reward, state_new, done)
 
         # -------- draw ---------------------------------------------------
         if visualize:
@@ -35,11 +36,12 @@ def train(visualize: bool = True) -> None:
         if done:
             board.reset()
             agent.num_games += 1
-            agent.train_long_memory()
 
-            if length > record:
-                record = length
-                agent.model.save()
+            if learn:
+                agent.train_long_memory()
+                if length > record:
+                    record = length
+                    agent.model.save()
 
             print(f"Game {agent.num_games}  length {length}  Record {record}")
 
@@ -47,6 +49,9 @@ def train(visualize: bool = True) -> None:
             total_length += length
             plot_mean_scores.append(total_length / agent.num_games)
             plot(plot_scores, plot_mean_scores)
+        if sessions and agent.num_games >= sessions:
+            print(f"Reached the number of sessions {sessions}")
+            break
 
 
 def main():
@@ -56,14 +61,27 @@ def main():
     #  interface.run()
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--session",
+        type=int,
+        default=0,
+        help="Number of episodes to run (0 = unlimited).",
+    )
+    parser.add_argument(
         "--visualize",
         choices=["true", "false"],
         default="true",
         help="Enable or disable visualization (true/false). Default is true.",
     )
+    parser.add_argument(
+        "--dontlearn",
+        action="store_true",
+        help="Run without learning (no training updates, no model saving).",
+    )
     args = parser.parse_args()
     visualize_flag = args.visualize.lower() == "true"
-    train(visualize=visualize_flag)
+    learn_flag = not args.dontlearn
+    sessions = max(0, args.session)  # ensure non-negative
+    train(sessions=sessions, visualize=visualize_flag, learn=learn_flag)
 
 
 if __name__ == "__main__":

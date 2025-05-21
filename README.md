@@ -13,10 +13,10 @@ will be tested during the defence.
 - step by step
     - show the details of the training process i guess?
 - args
-    - sessions
+    - done - sessions
     - save (save model)
     - load (load model)
     - done - visual (visualize on off)
-    - dontlearn ( no training just play with current model)
+    - done - dontlearn ( no training just play with current model)
     - step-by-step (step by step mode)
 

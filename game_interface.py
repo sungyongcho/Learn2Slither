@@ -22,25 +22,6 @@ class PygameInterface:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font("arial.ttf", 25)
 
-    # ── main loop ───────────────────────────────────────────────────────────
-
-    # def run(self, fps: int = 20) -> None:
-    #     while True:
-    #         action = self._random_action()  # replace with human/AI policy
-    #         reward, game_over, score = self.board.step(action)
-    #         self._handle_pygame_events()
-    #         if game_over:
-    #             self._render(dead=True)  # one last frame in red
-    #             pygame.time.wait(800)  # 0.8 s pause
-    #             print("Game over | score:", score)
-    #             break
-
-    #         self._render()
-    #         self.clock.tick(SPEED)
-    #     pygame.quit()
-
-    # ── helpers ─────────────────────────────────────────────────────────────
-
     @staticmethod
     def _random_action() -> List[int]:
         return random.choice([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
