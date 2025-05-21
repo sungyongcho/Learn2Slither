@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 from collections import deque
+from typing import Optional
 
 import numpy as np
 import torch
@@ -14,7 +15,7 @@ from model import LinearQNet, QTrainer
 class Agent:
     def __init__(
         self: Agent,
-        input_size: int = 27,  # Default based on your original state size
+        input_size: int = 20,  # Default based on your original state size
         initial_epsilon: float = 1.0,
         min_epsilon: float = 0.01,
         epsilon_decay_rate: float = 0.995,
@@ -65,98 +66,97 @@ class Agent:
             apple.y > head.y,  # Apple is down
         ]
 
-    def get_state(self: Agent, game: Environment) -> np.array:
-        head: Pos = game.head  # Assuming game.head is the snake's head position
+    def get_state(self: Agent, env: Environment) -> np.ndarray:
+        """
+        20-float vector in [F, B, L, R] order relative to the snake’s current heading:
+            0-3   wall distance
+            4-7   green-apple distance   (nearest one)
+            8-11  red-apple  distance
+            12-15 body distance
+            16-19 collision-on-next-step (0/1)
+        """
+        # ───── short-hand ──────────────────────────────────────────────────────────
+        W, H = env.width, env.height
+        head: Pos = env.head
+        hx, hy = head.x, head.y
+        head_dir: Direction = env.direction
+        body_set = {(p.x, p.y) for p in env.snake[1:]}  # exclude head
 
-        # Define points around the head (potential next cells in absolute directions)
-        point_l = Pos(head.x - 1, head.y)
-        point_r = Pos(head.x + 1, head.y)
-        point_u = Pos(head.x, head.y - 1)
-        point_d = Pos(head.x, head.y + 1)
+        # ───── relative deltas [F,B,L,R] ──────────────────────────────────────────
+        def rel_deltas(d: Direction):
+            if d == Direction.RIGHT:
+                return [(1, 0), (-1, 0), (0, -1), (0, 1)]
+            if d == Direction.LEFT:
+                return [(-1, 0), (1, 0), (0, 1), (0, -1)]
+            if d == Direction.UP:
+                return [(0, -1), (0, 1), (-1, 0), (1, 0)]
+            if d == Direction.DOWN:
+                return [(0, 1), (0, -1), (1, 0), (-1, 0)]
+            raise ValueError("Unknown direction")
 
-        # Current direction of the snake
-        dir_is_l = game.direction == Direction.LEFT
-        dir_is_r = game.direction == Direction.RIGHT
-        dir_is_u = game.direction == Direction.UP
-        dir_is_d = game.direction == Direction.DOWN
+        directions = rel_deltas(head_dir)  # [F, B, L, R]
 
-        # 1. Relative Danger (3 features)
-        # Danger if moving straight (relative to current direction)
-        danger_straight = (
-            (dir_is_r and game.is_collision(point_r))
-            or (dir_is_l and game.is_collision(point_l))
-            or (dir_is_u and game.is_collision(point_u))
-            or (dir_is_d and game.is_collision(point_d))
+        # ───── helper metrics (all ∈ [0,1]) ───────────────────────────────────────
+        def wall_dist(dx: int, dy: int) -> float:
+            if dx > 0:
+                return (W - 1 - hx) / (W - 1)
+            if dx < 0:
+                return hx / (W - 1)
+            if dy > 0:
+                return (H - 1 - hy) / (H - 1)
+            if dy < 0:
+                return hy / (H - 1)
+            return 0.0
+
+        def item_dist(dx: int, dy: int, item: Optional[Pos]) -> float:
+            if item is None:
+                return 1.0
+            ix, iy = item.x, item.y
+            # item must lie on the ray in (dx,dy)
+            if (dx and (iy != hy or (ix - hx) * dx <= 0)) or (
+                dy and (ix != hx or (iy - hy) * dy <= 0)
+            ):
+                return 1.0
+            manhattan = abs(ix - hx) + abs(iy - hy)
+            return manhattan / ((W - 1) + (H - 1))
+
+        def body_dist(dx: int, dy: int) -> float:
+            x, y, steps = hx, hy, 0
+            while True:
+                x += dx
+                y += dy
+                steps += 1
+                if x < 0 or x >= W or y < 0 or y >= H:
+                    return 1.0  # no body before wall
+                if (x, y) in body_set:
+                    max_axis = (W - 1) if dx else (H - 1)
+                    return steps / max_axis
+
+        def will_collide(dx: int, dy: int) -> float:
+            nx, ny = hx + dx, hy + dy
+            return float(nx < 0 or nx >= W or ny < 0 or ny >= H or (nx, ny) in body_set)
+
+        # nearest green apple (if any)
+        green_closest = min(
+            env.green_apples,
+            key=lambda a: abs(a.x - hx) + abs(a.y - hy),
+            default=None,
         )
 
-        # Danger if turning right (relative to current direction)
-        danger_right_turn = (
-            (dir_is_u and game.is_collision(point_r))
-            or (dir_is_d and game.is_collision(point_l))
-            or (dir_is_l and game.is_collision(point_u))
-            or (dir_is_r and game.is_collision(point_d))
-        )
+        # ───── assemble state ─────────────────────────────────────────────────────
+        state: list[float] = []
+        for dx, dy in directions:
+            state.append(wall_dist(dx, dy))  # 0-3
+        for dx, dy in directions:
+            state.append(item_dist(dx, dy, green_closest))  # 4-7
+        for dx, dy in directions:
+            state.append(item_dist(dx, dy, env.red_apple))  # 8-11
+        for dx, dy in directions:
+            state.append(body_dist(dx, dy))  # 12-15
+        for dx, dy in directions:
+            state.append(will_collide(dx, dy))  # 16-19
 
-        # Danger if turning left (relative to current direction)
-        danger_left_turn = (
-            (dir_is_d and game.is_collision(point_r))
-            or (dir_is_u and game.is_collision(point_l))
-            or (dir_is_r and game.is_collision(point_u))
-            or (dir_is_l and game.is_collision(point_d))
-        )
-
-        # 2. Current Direction (4 features)
-        # dir_is_l, dir_is_r, dir_is_u, dir_is_d
-
-        # 3. Food Locations (3 apples * 4 features/apple = 12 features)
-        # Ensure your game object has red_apple, green_apple1, green_apple2 attributes
-        # and they can be None if not present.
-        red_apple_features = self._get_apple_direction_features(
-            head, getattr(game, "red_apple", None)
-        )
-        green_apple1_features = self._get_apple_direction_features(
-            head, getattr(game, "green_apple1", None)
-        )
-        green_apple2_features = self._get_apple_direction_features(
-            head, getattr(game, "green_apple2", None)
-        )
-
-        # 4. Immediate Cell Occupancy (Collision in absolute adjacent cells) (4 features)
-        collision_abs_l = game.is_collision(point_l)
-        collision_abs_r = game.is_collision(point_r)
-        collision_abs_u = game.is_collision(point_u)
-        collision_abs_d = game.is_collision(point_d)
-
-        # 5. Advanced Trap/Lookahead (Absolute directions from head) (4 features)
-        # Is there a trap if we consider moving cardinally Left from head for 3 steps?
-        trap_lookahead_l = self._is_trap(game, point_l, Direction.LEFT)
-        trap_lookahead_r = self._is_trap(game, point_r, Direction.RIGHT)
-        trap_lookahead_u = self._is_trap(game, point_u, Direction.UP)
-        trap_lookahead_d = self._is_trap(game, point_d, Direction.DOWN)
-
-        state = [
-            danger_straight,
-            danger_right_turn,
-            danger_left_turn,
-            dir_is_l,
-            dir_is_r,
-            dir_is_u,
-            dir_is_d,
-            *red_apple_features,
-            *green_apple1_features,
-            *green_apple2_features,
-            collision_abs_l,
-            collision_abs_r,
-            collision_abs_u,
-            collision_abs_d,
-            trap_lookahead_l,
-            trap_lookahead_r,
-            trap_lookahead_u,
-            trap_lookahead_d,
-        ]
-        # Total: 3 + 4 + 12 + 4 + 4 = 27 features
-
-        return np.array(state, dtype=int)
+        return np.asarray(state, dtype=np.float32)
 
     def remember(
         self: Agent,
