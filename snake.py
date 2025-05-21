@@ -16,8 +16,14 @@ def train(
 ) -> None:
     plot_scores, plot_mean_scores = [], []
     total_length = record = 0
-
-    agent = Agent(load_path=load_path)
+    if learn:
+        agent = Agent(load_path=load_path)
+    else:
+        agent = Agent(
+            load_path=load_path,
+            initial_epsilon=0.00,  # ← disable exploration
+            min_epsilon=0.00,  # ← no random moves at all
+        )
     board = Environment()
     gui = PygameInterface(board) if visualize else None
 

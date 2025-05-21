@@ -3,7 +3,6 @@
 ### TODO
 - fix rewards
 - exploitation without learning - no training, just play with current model
-- save/load model
 ```
 You must have at least 3 saved model files, trained respectively with 1, 10, and 100
 training sessions. This should show how much your snake "learns" over multiple training
@@ -14,8 +13,8 @@ will be tested during the defence.
     - show the details of the training process i guess?
 - args
     - done - sessions
-    - save (save model)
-    - load (load model)
+    - done - save (save model)
+    - done - load (load model)
     - done - visual (visualize on off)
     - done - dontlearn ( no training just play with current model)
     - step-by-step (step by step mode)

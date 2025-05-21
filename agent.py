@@ -20,7 +20,6 @@ class Agent:
         min_epsilon: float = 0.01,
         epsilon_decay_rate: float = 0.995,
         load_path: str | None = None,
-        save_path: str | None = None,
     ) -> None:
         self.num_games: int = 0
         # Epsilon parameters for exploration-exploitation trade-off
@@ -34,38 +33,6 @@ class Agent:
 
         self.model = LinearQNet.load(load_path, input_size, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
-
-    def _is_trap(
-        self, game: Environment, start_point: Pos, direction: Direction
-    ) -> bool:
-        """Checks if a path in a given direction from start_point leads into a trap within 3 steps."""
-        current_point = start_point
-        for _ in range(3):  # Look ahead 3 steps
-            # Move current_point one step in the given direction
-            if direction == Direction.LEFT:
-                current_point = Pos(current_point.x - 1, current_point.y)
-            elif direction == Direction.RIGHT:
-                current_point = Pos(current_point.x + 1, current_point.y)
-            elif direction == Direction.UP:
-                current_point = Pos(current_point.x, current_point.y - 1)
-            elif direction == Direction.DOWN:
-                current_point = Pos(current_point.x, current_point.y + 1)
-
-            if game.is_collision(current_point):
-                return True  # Collision detected, it's a trap
-        return False  # Path is clear for at least 3 steps
-
-    def _get_apple_direction_features(self, head: Pos, apple: Pos | None) -> list[bool]:
-        """Helper to get direction features for a single apple."""
-        if apple is None:
-            return [False, False, False, False]  # Apple doesn't exist or not found
-
-        return [
-            apple.x < head.x,  # Apple is to the left
-            apple.x > head.x,  # Apple is to the right
-            apple.y < head.y,  # Apple is up
-            apple.y > head.y,  # Apple is down
-        ]
 
     def get_state(self: Agent, env: Environment) -> np.ndarray:
         """
