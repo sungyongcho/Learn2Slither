@@ -128,7 +128,7 @@ class PygameInterface:
 
         # ── score & flip ───────────────────
         self.display.blit(
-            self.font.render(f"Score: {self.board.score}", True, Colors.WHITE),
+            self.font.render(f"Length: {len(self.board.snake)}", True, Colors.WHITE),
             (0, 0),
         )
         pygame.display.flip()

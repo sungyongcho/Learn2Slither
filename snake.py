@@ -9,7 +9,7 @@ from helper import plot
 
 def train(visualize: bool = True) -> None:
     plot_scores, plot_mean_scores = [], []
-    total_score = record = 0
+    total_length = record = 0
 
     agent = Agent()
     board = Environment()
@@ -19,7 +19,7 @@ def train(visualize: bool = True) -> None:
         # -------- play one frame ----------------------------------------
         state_old = agent.get_state(board)
         action = agent.get_action(state_old)
-        reward, done, score = board.step(action)
+        reward, done, length = board.step(action)
         state_new = agent.get_state(board)
 
         agent.train_short_memory(state_old, action, reward, state_new, done)
@@ -37,15 +37,15 @@ def train(visualize: bool = True) -> None:
             agent.num_games += 1
             agent.train_long_memory()
 
-            if score > record:
-                record = score
+            if length > record:
+                record = length
                 agent.model.save()
 
-            print(f"Game {agent.num_games}  Score {score}  Record {record}")
+            print(f"Game {agent.num_games}  length {length}  Record {record}")
 
-            plot_scores.append(score)
-            total_score += score
-            plot_mean_scores.append(total_score / agent.num_games)
+            plot_scores.append(length)
+            total_length += length
+            plot_mean_scores.append(total_length / agent.num_games)
             plot(plot_scores, plot_mean_scores)
 
 

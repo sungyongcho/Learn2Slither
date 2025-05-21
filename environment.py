@@ -64,7 +64,7 @@ class Environment:
     ) -> Tuple[int, bool, int]:
         """Advance one tick. Return (learning_reward, game_over, display_score)."""
 
-        self.frame_counter += 1
+        self.frame += 1
         self.frames_since_food += 1
 
         # 1. Move head
@@ -94,17 +94,17 @@ class Environment:
         if shrink and self.snake:
             self.snake.pop()  # red apple → shrink extra
             if not self.snake:  # shrunk away completely
-                return REWARD_DEATH, True
+                return REWARD_DEATH, True, len(self.snake)
 
         # 4. Wall / body collision (after tail possibly removed)
         if self.is_collision():
-            return REWARD_DEATH, True
+            return REWARD_DEATH, True, len(self.snake)
 
         # 5. Starvation check (uses final length)
         if self.frames_since_food > STARVE_FACTOR * len(self.snake):
-            return REWARD_DEATH, True
+            return REWARD_DEATH, True, len(self.snake)
 
-        return reward, False
+        return reward, False, len(self.snake)
 
     def _random_empty_tile(self) -> Pos:
         """Return a random tile not occupied by the snake or apples."""
