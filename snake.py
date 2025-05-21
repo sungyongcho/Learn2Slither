@@ -95,6 +95,15 @@ def main():
     visualize_flag = args.visualize.lower() == "true"
     learn_flag = not args.dontlearn
     sessions = max(0, args.session)  # ensure non-negative
+
+    print("===== Configuration =====")
+    print(f"Sessions       : {sessions} ({'unlimited' if sessions == 0 else ''})")
+    print(f"Load path      : {args.load}")
+    print(f"Save path      : {args.save}")
+    print(f"Visualization  : {'Enabled' if visualize_flag else 'Disabled'}")
+    print(f"Learning       : {'Enabled' if learn_flag else 'Disabled'}")
+    print("=========================\n")
+
     train(
         sessions=sessions,
         load_path=args.load,
