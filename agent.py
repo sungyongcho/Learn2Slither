@@ -19,6 +19,8 @@ class Agent:
         initial_epsilon: float = 1.0,
         min_epsilon: float = 0.01,
         epsilon_decay_rate: float = 0.995,
+        load_path: str | None = None,
+        save_path: str | None = None,
     ) -> None:
         self.num_games: int = 0
         # Epsilon parameters for exploration-exploitation trade-off
@@ -30,8 +32,7 @@ class Agent:
         self.gamma: float = 0.9  # Discount rate
         self.memory = deque(maxlen=MAX_MEMORY)  # popleft() when full
 
-        # IMPORTANT: Ensure input_size matches the actual number of features from get_state()
-        self.model = LinearQNet(input_size, 256, 3)  # 3 actions: straight, right, left
+        self.model = LinearQNet.load(load_path, input_size, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
     def _is_trap(

@@ -7,11 +7,17 @@ from game_interface import PygameInterface
 from plot_graph import plot
 
 
-def train(sessions: int = 0, visualize: bool = True, learn: bool = True) -> None:
+def train(
+    sessions: int = 0,
+    load_path: str = None,
+    save_path: str = None,
+    visualize: bool = True,
+    learn: bool = True,
+) -> None:
     plot_scores, plot_mean_scores = [], []
     total_length = record = 0
 
-    agent = Agent()
+    agent = Agent(load_path=load_path)
     board = Environment()
     gui = PygameInterface(board) if visualize else None
 
@@ -41,7 +47,7 @@ def train(sessions: int = 0, visualize: bool = True, learn: bool = True) -> None
                 agent.train_long_memory()
                 if length > record:
                     record = length
-                    agent.model.save()
+                    agent.model.save(save_path)
 
             print(f"Game {agent.num_games}  length {length}  Record {record}")
 
@@ -66,6 +72,8 @@ def main():
         default=0,
         help="Number of episodes to run (0 = unlimited).",
     )
+    parser.add_argument("--load", help="Path to .pth file to load (optional)")
+    parser.add_argument("--save", help="Path to save model when a new record is hit")
     parser.add_argument(
         "--visualize",
         choices=["true", "false"],
@@ -81,7 +89,13 @@ def main():
     visualize_flag = args.visualize.lower() == "true"
     learn_flag = not args.dontlearn
     sessions = max(0, args.session)  # ensure non-negative
-    train(sessions=sessions, visualize=visualize_flag, learn=learn_flag)
+    train(
+        sessions=sessions,
+        load_path=args.load,
+        save_path=args.save,
+        visualize=visualize_flag,
+        learn=learn_flag,
+    )
 
 
 if __name__ == "__main__":

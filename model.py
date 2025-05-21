@@ -31,6 +31,23 @@ class LinearQNet(nn.Module):
         file_name = os.path.join(model_folder_path, file_name)
         torch.save(self.state_dict(), file_name)
 
+    @staticmethod
+    def load(
+        path: str,
+        input_size: int,
+        hidden_size: int,
+        output_size: int,
+    ) -> LinearQNet:
+        """Create a network and load weights from *file_name* if it exists."""
+        net = LinearQNet(input_size, hidden_size, output_size)
+        if path and isinstance(path, (str, bytes)) and os.path.isfile(path):
+            net.load_state_dict(torch.load(path))
+            print(f"[INFO] Loaded model weights from {path}")
+        else:
+            if path:
+                print(f"[INFO] No model found at {path}; starting fresh.")
+        return net
+
 
 class QTrainer:
     def __init__(
