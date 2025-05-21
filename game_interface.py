@@ -14,13 +14,13 @@ class PygameInterface:
 
     def __init__(self, board: Environment) -> None:
         pygame.init()
+        self.font = pygame.font.SysFont("arial", 25)  # Or any font you prefer
         self.board = board
         self.w_px = board.width * BLOCK_SIZE
         self.h_px = board.height * BLOCK_SIZE
         self.display = pygame.display.set_mode((self.w_px, self.h_px))
         pygame.display.set_caption("Snake")
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font("arial.ttf", 25)
 
     @staticmethod
     def _random_action() -> List[int]:

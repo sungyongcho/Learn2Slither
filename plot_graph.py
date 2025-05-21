@@ -1,14 +1,6 @@
-import os
-
-os.environ["QT_QPA_PLATFORM"] = "xcb"
-
 import matplotlib.pyplot as plt
 
-plt.ion()  # Interactive mode ON
-plt.figure()
 
-
-# Remove IPython display if not using Jupyter
 def plot(scores, mean_scores):
     plt.clf()
     plt.title("Training")
@@ -21,4 +13,5 @@ def plot(scores, mean_scores):
     plt.text(len(mean_scores) - 1, mean_scores[-1], str(mean_scores[-1]))
     plt.draw()
     plt.show(block=False)
+    plt.pause(0.1)
     plt.pause(0.1)
