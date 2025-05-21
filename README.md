@@ -1,22 +1,6 @@
 ## Learn2Slither
 
 ### TODO
-- **fix the state**
-```
-Distance Measurements (16 neurons)
-Each direction contains 4 normalized distance values representing:
-
-Distance to the nearest wall
-Distance to the nearest green apple
-Distance to the nearest red apple
-Distance to the nearest snake body segment
-Danger Detection (4 neurons)
-Four binary neurons (0 or 1) detect immediate collision threats in adjacent cells. These neurons activate when:
-
-A wall is directly adjacent in that direction
-A snake body segment is directly adjacent in that direction
-
-```
 - fix rewards
 - exploitation without learning - no training, just play with current model
 - save/load model
@@ -32,7 +16,7 @@ will be tested during the defence.
     - sessions
     - save (save model)
     - load (load model)
-    - visual (visualize on off)
+    - done - visual (visualize on off)
     - dontlearn ( no training just play with current model)
     - step-by-step (step by step mode)
 

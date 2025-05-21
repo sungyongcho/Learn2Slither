@@ -14,11 +14,13 @@ class LinearQNet(nn.Module):
     ) -> None:
         super().__init__()
         self.linear1 = nn.Linear(input_size, hidden_size)
-        self.linear2 = nn.Linear(hidden_size, output_size)
+        self.linear2 = nn.Linear(hidden_size, hidden_size // 2)
+        self.linear3 = nn.Linear(hidden_size // 2, output_size)
 
     def forward(self: LinearQNet, x):
         x = F.relu(self.linear1(x))
         x = self.linear2(x)
+        x = self.linear3(x)
         return x
 
     def save(self: LinearQNet, file_name="model.pth"):
@@ -68,8 +70,8 @@ class QTrainer:
                 Q_new = reward[i] + self.gamma * torch.max(
                     self.model(next_state[i].detach())
                 )
-            target[i][torch.argmax(action).item()] = Q_new
-
+            act_idx = torch.argmax(action[i]).item()  # pick the action *for row i*
+            target[i][act_idx] = Q_new
         # 2: Q_new = r + y * max(next predicted Q value)
         # -> only do this if not done
         # pred.clone()

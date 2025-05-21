@@ -9,6 +9,10 @@ from constants import (
     BOARD_HEIGHT,
     BOARD_WIDTH,
     GREEN_APPLE_COUNT,
+    REWARD_DEATH,
+    REWARD_GREEN_APPLE,
+    REWARD_LIVING_STEP,
+    REWARD_RED_APPLE,
     STARVE_FACTOR,
     Direction,
     Pos,
@@ -25,121 +29,82 @@ class Environment:
     ) -> None:
         self.width: int = width
         self.height: int = height
-        # Define reward constants at the instance or class level for easy tuning
-        self.REWARD_LIVING_STEP: int = 0
-        self.REWARD_GREEN_APPLE: int = (
-            25  # Let's try a slightly higher green apple reward
-        )
-        self.REWARD_RED_APPLE: int = -15
-        self.REWARD_DEATH: int = -100
+
         self.reset()
 
     def reset(self) -> None:
         """Return the board to its initial state."""
-        self.direction: Direction = Direction.RIGHT
-        # Ensure head is placed within bounds if width/height can be small
+        self.direction: Direction = random.choice(list(Direction))
         self.head: Pos = Pos(
-            random.randint(0, self.width - 3),  # Ensure space for initial snake
-            random.randint(0, self.height - 1),
+            random.randint(0, self.width - 3),  # Ensure space for initial
+            random.randint(0, self.height - 3),
         )
-        # Ensure initial snake is within bounds and not overlapping if placed near edge
-        # A safer initial placement might be center-ish or ensuring space.
-        # For now, assuming width > 2.
         self.snake: List[Pos] = [
             self.head,
             Pos(
-                self.head.x - 1 if self.head.x > 0 else self.head.x + 1, self.head.y
-            ),  # simplified initial snake
+                self.head.x - 1 if self.head.x > 0 else self.head.x + 1,
+                self.head.y,
+            ),
             Pos(
-                self.head.x - 2 if self.head.x > 1 else self.head.x + 2, self.head.y
-            ),  # simplified
+                self.head.x - 2 if self.head.x > 1 else self.head.x + 2,
+                self.head.y,
+            ),
         ]
-        # Clean up initial snake placement to be more robust
-        # Let's place head, then extend left, ensuring no out-of-bounds for simplicity here.
-        # A more robust reset would check for valid positions.
-        # Example: self.head = Pos(self.width // 2, self.height // 2)
-        # self.snake = [self.head, Pos(self.head.x - 1, self.head.y), Pos(self.head.x - 2, self.head.y)]
 
-        self.score: int = 0  # This is the game's display score, not the learning reward
         self.red_apple: Optional[Pos] = None
         self.green_apples: List[Pos] = []
         self._place_red_apple()
         self._place_green_apples()  # Ensure this can always place apples
-        self.frame_counter: int = 0
+        self.frame: int = 0
         self.frames_since_food: int = 0
 
     def step(
         self,
-        action: Union[
-            np.ndarray, List[int]
-        ],  # Action is typically [1,0,0], [0,1,0], or [0,0,1]
-    ) -> Tuple[int, bool, int]:  # Returns (learning_reward, game_over, display_score)
+        action: Union[np.ndarray, List[int]],
+    ) -> Tuple[int, bool, int]:
         """Advance one tick. Return (learning_reward, game_over, display_score)."""
 
         self.frame_counter += 1
         self.frames_since_food += 1
 
-        # Move head based on action
+        # 1. Move head
         self._move(action)
-        self.snake.insert(0, self.head)  # New head is added
+        self.snake.insert(0, self.head)  # new head at index 0
 
-        # Initialize reward for this step
-        current_learning_reward: int = self.REWARD_LIVING_STEP
+        grew = shrink = False
+        reward = REWARD_LIVING_STEP
 
-        # 1. Check for game over by collision (wall or self)
-        # self.is_collision() checks the current self.head
-        if self.is_collision():
-            return self.REWARD_DEATH, True, self.score
-
-        # 2. Check for game over by starvation
-        # Ensure STARVE_FACTOR and len(self.snake) are positive
-        if len(self.snake) > 0 and self.frames_since_food > (
-            STARVE_FACTOR * len(self.snake)
-        ):
-            return self.REWARD_DEATH, True, self.score
-
-        grew: bool = False
-        shrink: bool = False
-
-        # 3. Check for apple consumption
-        if (
-            self.red_apple and self.head == self.red_apple
-        ):  # Ensure red_apple is not None
-            self.score += 1  # Update game's display score
-            current_learning_reward = self.REWARD_RED_APPLE
-            self._place_red_apple()  # Place a new red apple
+        # 2. Apple checks ────────────────
+        if self.red_apple and self.head == self.red_apple:
+            reward = REWARD_RED_APPLE
+            self._place_red_apple()
             self.frames_since_food = 0
             shrink = True
+
         elif self.head in self.green_apples:
-            # It's good practice to handle the case where self.head might match
-            # multiple apples if they could overlap, though _random_empty_tile should prevent this.
-            eaten_apple_pos = self.head
-            self.green_apples.remove(eaten_apple_pos)  # Remove the specific eaten apple
-            self.score += 10  # Update game's display score
-            current_learning_reward = self.REWARD_GREEN_APPLE
-            self._place_green_apples()  # Replenish green apples to maintain count
+            self.green_apples.remove(self.head)
+            reward = REWARD_GREEN_APPLE
+            self._place_green_apples()
             self.frames_since_food = 0
             grew = True
 
-        # 4. Update snake body (grow or shrink)
-        if grew:
-            # Snake already "grew" by inserting the new head and not popping the tail
-            pass
-        else:
-            # Did not eat a green apple, so pop the tail to maintain length
-            if self.snake:  # Ensure snake is not empty before popping
-                self.snake.pop()
+        # 3. Update length ──────────────
+        if not grew and self.snake:
+            self.snake.pop()  # normal move → drop tail
+        if shrink and self.snake:
+            self.snake.pop()  # red apple → shrink extra
+            if not self.snake:  # shrunk away completely
+                return REWARD_DEATH, True
 
-            if shrink:  # Ate a red apple, so shrink further
-                if self.snake:  # Ensure snake is not empty before popping again
-                    self.snake.pop()
+        # 4. Wall / body collision (after tail possibly removed)
+        if self.is_collision():
+            return REWARD_DEATH, True
 
-                # 5. Check for game over by shrinking to zero length
-                if not self.snake:  # Snake has no segments left (became empty)
-                    return self.REWARD_DEATH, True, self.score
+        # 5. Starvation check (uses final length)
+        if self.frames_since_food > STARVE_FACTOR * len(self.snake):
+            return REWARD_DEATH, True
 
-        # If no game-ending event occurred in this step
-        return current_learning_reward, False, self.score
+        return reward, False
 
     def _random_empty_tile(self) -> Pos:
         """Return a random tile not occupied by the snake or apples."""
