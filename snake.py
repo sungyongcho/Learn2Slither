@@ -1,205 +1,205 @@
+from __future__ import annotations
+
+"""Main entry‑point for training or evaluating the Snake RL agent.
+
+Usage examples
+--------------
+$ python play.py                           # train, visualise, no plot
+$ python play.py --visualize false         # head‑less training
+$ python play.py --plot                    # show live score plot while training
+$ python play.py --dontlearn --load best.pth  # greedy evaluation, no plot
+"""
+
 import argparse
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
 
 import matplotlib.pyplot as plt
 
 from agent import Agent
-from constants import SPEED
+from constants import SPEED, RLConfig
 from environment import Environment
 from game_interface import PygameInterface
-from plot_graph import plot as actual_plot_function
+from plot_graph import plot as plot_scores
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CLI → runtime config
+# ──────────────────────────────────────────────────────────────────────────────
 
 
-# ------------------------------------------------------------------------
-# Core loop (private)
-# ------------------------------------------------------------------------
-def _play_loop(
-    *,
-    sessions: int = 0,
-    load_path: str | None = None,
-    save_path: str | None = None,
-    visualize: bool = True,  # For Pygame visualization
-    learn: bool = True,
-    enable_plotting: bool = True,  # For score plotting
-) -> None:
-    if enable_plotting:
-        plt.ion()  # Turn on interactive mode only if plotting
-        plot_figure = plt.figure()  # Create a figure for plotting
-        plt.show(block=False)  # Show the figure window once, non-blockingly
+@dataclass
+class Config:
+    """Immutable run‑time configuration produced by :func:`parse_args`."""
 
-        plot_scores, plot_mean_scores = [], []
-        total_length = 0
-    else:  # Ensure these exist even if not used, or handle more carefully
-        plot_scores, plot_mean_scores = None, None
+    sessions: int = 0  # 0 == unlimited
+    load_path: Optional[Path] = None
+    save_path: Optional[Path] = None
+    visualize: bool = True
+    learn: bool = True
+    plot: bool = False
+    step_by_step: bool = False
+
+    # helper ---------------------------------------------------------------
+    @property
+    def plotting_enabled(self) -> bool:
+        return self.plot  # purely controlled by --plot flag
+
+
+# -----------------------------------------------------------------------------
+# CLI parsing
+# -----------------------------------------------------------------------------
+
+
+def parse_args() -> Config:
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    p.add_argument(
+        "--session", type=int, default=0, help="Episodes to run (0 = unlimited)"
+    )
+    p.add_argument("--load", type=Path, help="Path to .pth checkpoint to load")
+    p.add_argument(
+        "--save", type=Path, help="Path to save model when a new record is hit"
+    )
+
+    # visualize expects the literal strings true / false
+    p.add_argument(
+        "--visualize",
+        choices=["true", "false"],
+        default="true",
+        help="true/false: enable Pygame visualisation",
+    )
+
+    # --plot works like --dontlearn: presence ⇒ True, absence ⇒ False
+    p.add_argument("--plot", action="store_true", help="Show live score plot")
+
+    p.add_argument(
+        "--dontlearn",
+        action="store_true",
+        help="Run in inference-only mode (no training)",
+    )
+    p.add_argument(
+        "--step-by-step",
+        dest="step_by_step",
+        action="store_true",
+        help="Verbose Step-By-Step console output",
+    )
+
+    ns = p.parse_args()
+    if ns.dontlearn and ns.save:
+        p.error(
+            "When --dontlearn is set the model cannot be saved "
+            "(--save flag is invalid)."
+        )
+
+    if ns.dontlearn and ns.plot:
+        p.error(
+            "When running without learning the score plot cannot be shown "
+            "(remove the --plot flag)."
+        )
+
+    return Config(
+        sessions=max(0, ns.session),
+        load_path=ns.load,
+        save_path=ns.save if not ns.dontlearn else None,
+        visualize=(ns.visualize == "true"),
+        learn=not ns.dontlearn,
+        plot=ns.plot,
+        step_by_step=ns.step_by_step,
+    )
+
+
+def play(cfg: Config) -> None:
+    if cfg.plotting_enabled:
+        plt.ion()
+        _ = plt.figure()
+        scores: list[int] = []
+        means: list[float] = []
+        total_len: int = 0
 
     record = 0
 
-    # Agent
-    agent_kwargs = {"load_path": load_path}
-    if not learn:  # freeze policy
-        agent_kwargs.update(initial_epsilon=0.0, min_epsilon=0.0)
-    agent = Agent(**agent_kwargs)
+    agent = Agent(
+        RLConfig(  # <-- create config
+            initial_epsilon=0.0 if not cfg.learn else 1.0,
+            min_epsilon=0.0 if not cfg.learn else 0.01,
+        ),
+        load_path=str(cfg.load_path) if cfg.load_path else None,
+        step_by_step=cfg.step_by_step,
+    )
+
+    start_game = agent.num_games  # value restored from checkpoint
+    if cfg.sessions:  # user asked for extra episodes
+        target_game = start_game + cfg.sessions
+    else:  # unlimited run
+        target_game = None
+
+    if cfg.load_path and cfg.sessions:
+        print(
+            f"[INFO] Resumed at game {start_game}. "
+            f"Will play {cfg.sessions} more → stop at {target_game}."
+        )
 
     board = Environment()
-    gui = (
-        PygameInterface(board) if visualize else None
-    )  # Pygame GUI based on 'visualize'
+    gui = PygameInterface(board) if cfg.visualize else None
 
+    # ----- main loop ---------------------------------------------------------
     while True:
-        # ------------ one frame ----------------------------------------
         state_old = agent.get_state(board)
         action = agent.get_action(state_old)
         reward, done, length = board.step(action)
         state_new = agent.get_state(board)
 
-        if learn:
-            agent.train_short_memory(
-                state_old,
-                action,
-                reward,
-                state_new,
-                done,
-            )
+        if cfg.learn:
+            agent.train_short_memory(state_old, action, reward, state_new, done)
             agent.remember(state_old, action, reward, state_new, done)
 
-        # ------------ draw (Pygame visualization) --------------------
-        if visualize:
-            if gui:  # Ensure gui exists
-                gui._handle_pygame_events()
-                gui._render(dead=done)
-                gui.clock.tick(SPEED)
+        if gui:
+            gui._handle_pygame_events()
+            gui._render(dead=done)
+            gui.clock.tick(SPEED)
 
-        # ------------ episode end --------------------------------------
         if done:
             board.reset()
             agent.num_games += 1
 
-            if learn:
+            if cfg.learn:
                 agent.train_long_memory()
                 if length > record:
                     record = length
-                    if save_path:
-                        agent.model.save(save_path)
+                    if cfg.save_path:
+                        agent.save(str(cfg.save_path))
                     else:
-                        print(
-                            "Warning: New record, but no --save path provided."
-                            + "Model not saved."
-                        )
+                        print("[WARN] New record but no --save path given → not saved")
 
-            print(f"Game {agent.num_games}  length {length}  Record {record}")
+            print(f"Game {agent.num_games:<4}  Length {length:<4}  Record {record}")
 
-            # Score plotting based on 'enable_plotting'
+            if cfg.plotting_enabled:
+                scores.append(length)
+                total_len += length
+                means.append(total_len / agent.num_games)
+                plot_scores(scores, means)
 
-            if (
-                enable_plotting and plot_figure
-            ):  # Check if plotting is on and figure exists
-                plot_scores.append(length)
-                total_length += length
-                plot_mean_scores.append(total_length / agent.num_games)
-                # actual_plot_function from import (look top)
-                actual_plot_function(plot_scores, plot_mean_scores)
-
-            if sessions and agent.num_games >= sessions:
-                print(f"Reached the number of sessions {sessions}")
+            if target_game is not None and agent.num_games >= target_game:
+                print("[INFO] Target sessions reached")
                 break
 
 
-# ------------------------------------------------------------------------
-# Public wrappers
-# ------------------------------------------------------------------------
-def train(**kwargs) -> None:
-    """Train with learning and model saving."""
-    _play_loop(learn=True, **kwargs)
+# -----------------------------------------------------------------------------
+# Entry point
+# -----------------------------------------------------------------------------
 
 
-def run(**kwargs) -> None:
-    """Run inference only (no learning, no saving)."""
-    kwargs.pop("save_path", None)
-    _play_loop(learn=False, **kwargs)
-
-
-# ------------------------------------------------------------------------
-# CLI
-# ------------------------------------------------------------------------
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--session", type=int, default=0, help="Episodes to run (0 = unlimited)."
-    )
-    parser.add_argument(
-        "--load",
-        help="Path to .pth file to load (optional)",
-    )
-    parser.add_argument(
-        "--save",
-        help="Path to save model when a new record is hit",
-    )
-    parser.add_argument(
-        "--visualize",  # For Pygame visualization
-        choices=["true", "false"],
-        default="true",
-        help="Enable/disable Pygame visualization.",
-    )
-    parser.add_argument(
-        "--plot",  # For score plotting
-        choices=["true", "false"],
-        default="true",
-        help="Enable/disable score plotting. Overridden by --dontlearn.",
-    )
-    parser.add_argument(
-        "--dontlearn",
-        action="store_true",
-        help="Run without learning, also disables score plotting.",
-    )
-    args = parser.parse_args()
+    cfg = parse_args()
 
-    # Pygame visualization flag - directly from argument,
-    # not affected by --dontlearn
-    visualize_flag = args.visualize.lower() == "true"
+    print("\n── Configuration ─────────────────────────────────────────────")
+    for k, v in cfg.__dict__.items():
+        print(f"{k:>15}: {v}")
+    print("──────────────────────────────────────────────────────────────\n")
 
-    # Score plotting flag - can be overridden by --dontlearn
-    initial_plot_request = args.plot.lower() == "true"
-    enable_plotting_flag = initial_plot_request
-    if args.dontlearn:
-        # Override score plotting if --dontlearn is set
-        enable_plotting_flag = False
-
-    sessions = max(0, args.session)
-
-    # -------- summary ---------------------------------------------------
-    print("===== Configuration =====")
-    print(f"Sessions       : {sessions or 'unlimited'}")
-    print(f"Load path      : {args.load if args.load else '—'}")
-    print(
-        f"Save path      : {(args.save if args.save else '—') if not args.dontlearn else '— (Learning disabled)'}"
-    )
-
-    # Summary for Pygame visualization (simple enabled/disabled)
-    print(f"Visualization  : {'Enabled' if visualize_flag else 'Disabled'}")
-
-    # Summary for score plotting (can be overridden)
-    plot_summary_message = ""
-    if args.dontlearn and initial_plot_request:
-        plot_summary_message = "Disabled (overridden by --dontlearn)"
-    elif enable_plotting_flag:
-        plot_summary_message = "Enabled"
-    else:
-        plot_summary_message = "Disabled"
-    print(f"Plotting       : {plot_summary_message}")
-
-    print(f"Learning       : {'Disabled' if args.dontlearn else 'Enabled'}")
-    print("=========================\n")
-
-    common = dict(
-        sessions=sessions,
-        load_path=args.load,
-        save_path=args.save if not args.dontlearn else None,
-        visualize=visualize_flag,  # For Pygame visualization
-        enable_plotting=enable_plotting_flag,  # For score plotting
-    )
-    (run if args.dontlearn else train)(**common)
+    play(cfg)
 
 
 if __name__ == "__main__":
-    main()
-    main()
     main()

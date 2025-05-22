@@ -7,32 +7,35 @@ from typing import Optional
 import numpy as np
 import torch
 
-from constants import BATCH_SIZE, LR, MAX_MEMORY, Direction, Pos
+from checkpoint import load, save
+from constants import BATCH_SIZE, LR, MAX_MEMORY, Direction, Pos, RLConfig
 from environment import Environment
-from model import LinearQNet, QTrainer
+from model import QTrainer
 
 
 class Agent:
     def __init__(
         self: Agent,
-        input_size: int = 20,  # Default based on your original state size
-        initial_epsilon: float = 1.0,
-        min_epsilon: float = 0.01,
-        epsilon_decay_rate: float = 0.995,
+        config: RLConfig,
         load_path: str | None = None,
+        step_by_step: bool = False,
     ) -> None:
-        self.num_games: int = 0
-        # Epsilon parameters for exploration-exploitation trade-off
-        self.initial_epsilon: float = initial_epsilon
-        self.min_epsilon: float = min_epsilon
-        self.epsilon_decay_rate: float = epsilon_decay_rate
-        self.epsilon: float = self.initial_epsilon  # Current epsilon
-
-        self.gamma: float = 0.9  # Discount rate
+        self.config: RLConfig = config
         self.memory = deque(maxlen=MAX_MEMORY)  # popleft() when full
-
-        self.model = LinearQNet.load(load_path, input_size, 256, 3)
-        self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
+        self.num_games: int = 0
+        self.epsilon: float = self.config.initial_epsilon  # Current epsilon
+        self.step_by_step: bool = step_by_step
+        self.model, extras = load(
+            load_path,
+            config.input_size,
+            config.hidden1_size,
+            config.hidden2_size,
+            config.output_size,
+            optim=None,
+            step_by_step=step_by_step,
+        )
+        self.__dict__.update(extras)
+        self.trainer = QTrainer(self.model, lr=LR, gamma=self.config.gamma)
 
     def get_state(self: Agent, env: Environment) -> np.ndarray:
         """
@@ -111,7 +114,6 @@ class Agent:
             default=None,
         )
 
-        # ───── assemble state ─────────────────────────────────────────────────────
         state: list[float] = []
         for dx, dy in directions:
             state.append(wall_dist(dx, dy))  # 0-3
@@ -167,18 +169,16 @@ class Agent:
         # Calculate current epsilon based on exponential decay
         # Epsilon starts at self.initial_epsilon and decays towards self.min_epsilon
         self.epsilon = max(
-            self.min_epsilon,
-            self.initial_epsilon * (self.epsilon_decay_rate**self.num_games),
+            self.config.min_epsilon,
+            self.config.initial_epsilon * (self.config.epsilon_decay**self.num_games),
         )
-
-        final_move: list = [0, 0, 0]  # [straight, right_turn, left_turn]
+        move: list = [0, 0, 0]  # [straight, right_turn, left_turn]
 
         if (
             random.random() < self.epsilon
         ):  # random.random() gives float between 0.0 and 1.0
             # Explore: take a random action
-            move_idx = random.randint(0, 2)  # 0: straight, 1: right, 2: left
-            final_move[move_idx] = 1
+            move[random.randint(0, 2)] = 1
         else:
             # Exploit: take the action with the highest Q-value
             state_tensor = torch.tensor(state, dtype=torch.float)
@@ -186,6 +186,19 @@ class Agent:
                 state_tensor
             )  # self.model(state_tensor) also works
             move_idx: int = torch.argmax(prediction).item()
-            final_move[move_idx] = 1
+            move[move_idx] = 1
 
-        return final_move
+        return move
+
+    def save(self, save_path: str = None) -> None:
+        save(
+            save_path,
+            self.model,
+            optim=self.trainer.optimizer,
+            epsilon=self.epsilon,
+            num_games=self.num_games,
+            gamma=self.config.gamma,
+            epsilon_decay=self.config.epsilon_decay,
+            initial_epsilon=self.config.initial_epsilon,
+            min_epsilon=self.config.min_epsilon,
+        )

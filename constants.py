@@ -57,3 +57,16 @@ REWARD_LIVING_STEP: int = 0
 REWARD_GREEN_APPLE: int = 50
 REWARD_RED_APPLE: int = -25
 REWARD_DEATH: int = -100
+
+
+@dataclass
+class RLConfig:
+    input_size: int = 20
+    hidden1_size: int = 256
+    hidden2_size: int = 128
+    output_size: int = 3
+    gamma: float = 0.90
+    lr: float = LR
+    initial_epsilon: float = 1.0
+    min_epsilon: float = 0.01
+    epsilon_decay: float = 0.995
