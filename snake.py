@@ -128,11 +128,8 @@ def play(cfg: Config) -> None:
         step_by_step=cfg.step_by_step,
     )
 
-    start_game = agent.num_games  # value restored from checkpoint
-    if cfg.sessions:  # user asked for extra episodes
-        target_game = start_game + cfg.sessions
-    else:  # unlimited run
-        target_game = None
+    start_game = agent.num_games
+    target_game = start_game + cfg.sessions if cfg.sessions else None
 
     if cfg.load_path and cfg.sessions:
         print(
@@ -140,7 +137,7 @@ def play(cfg: Config) -> None:
             f"Will play {cfg.sessions} more → stop at {target_game}."
         )
 
-    board = Environment()
+    board = Environment(step_by_step=cfg.step_by_step)
     gui = PygameInterface(board) if cfg.visualize else None
 
     # ----- main loop ---------------------------------------------------------
@@ -148,10 +145,16 @@ def play(cfg: Config) -> None:
         state_old = agent.get_state(board)
         action = agent.get_action(state_old)
         reward, done, length = board.step(action)
-        state_new = agent.get_state(board)
 
         if cfg.learn:
-            agent.train_short_memory(state_old, action, reward, state_new, done)
+            state_new = agent.get_state(board)
+            agent.train_short_memory(
+                state_old,
+                action,
+                reward,
+                state_new,
+                done,
+            )
             agent.remember(state_old, action, reward, state_new, done)
 
         if gui:

@@ -26,9 +26,11 @@ class Environment:
         self,
         width: int = BOARD_WIDTH,
         height: int = BOARD_HEIGHT,
+        step_by_step: bool = False,
     ) -> None:
         self.width: int = width
         self.height: int = height
+        self.step_by_step: bool = step_by_step
 
         self.reset()
 
@@ -64,6 +66,28 @@ class Environment:
     ) -> Tuple[int, bool, int]:
         """Advance one tick. Return (learning_reward, game_over, display_score)."""
 
+        def get_action_name(
+            action_vec: Union[np.ndarray, List[int]],
+        ) -> str:  # Helper method
+            if isinstance(action_vec, np.ndarray):
+                action_vec = action_vec.tolist()
+            if action_vec == [1, 0, 0]:
+                return "straight"
+            if action_vec == [0, 1, 0]:
+                return "right_turn"
+            if action_vec == [0, 0, 1]:
+                return "left_turn"
+            return str(action_vec)
+
+        action_name = get_action_name(action)  # Get readable action name
+        if self.step_by_step:
+            print(
+                f"[Environment] Frame: {self.frame + 1}, Frames since food: {self.frames_since_food + 1}, Received action: {action_name} ({action})"
+            )
+            print(
+                f"[Environment] Current snake head: {self.head}, Snake length: {len(self.snake)}"
+            )
+
         self.frame += 1
         self.frames_since_food += 1
 
@@ -71,38 +95,92 @@ class Environment:
         self._move(action)
         self.snake.insert(0, self.head)  # new head at index 0
 
+        if self.step_by_step:
+            print(
+                f"[Environment] Movement: Action '{action_name}' led to new head position: {self.head}."
+            )
+
         grew = shrink = False
         reward = REWARD_LIVING_STEP
+        if self.step_by_step:
+            print(f"[Environment] Initial reward for step: {reward}")
 
         # 2. Apple checks ────────────────
         if self.red_apple and self.head == self.red_apple:
             reward = REWARD_RED_APPLE
             self._place_red_apple()
+            if self.step_by_step:
+                print(
+                    f"[Environment] Event: Ate RED apple at {self.red_apple}. Reward: {reward}. Frames since food reset. Flagged to shrink."
+                )
             self.frames_since_food = 0
             shrink = True
+            if self.step_by_step:
+                print(
+                    f"[Environment] New red apple placed at: {self.red_apple if self.red_apple else 'None (no space?)'}"
+                )
 
         elif self.head in self.green_apples:
             self.green_apples.remove(self.head)
             reward = REWARD_GREEN_APPLE
-            self._place_green_apples()
             self.frames_since_food = 0
             grew = True
+            if self.step_by_step:
+                print(
+                    f"[Environment] Event: Ate GREEN apple at {self.head}. Reward: {reward}. Frames since food reset. Flagged to grow."
+                )
+            self._place_green_apples()  # This should attempt to maintain apple count
+            if self.step_by_step:
+                print(
+                    f"[Environment] Green apples updated. Current green apples: {len(self.green_apples)} positions: {self.green_apples}"
+                )
 
         # 3. Update length ──────────────
         if not grew and self.snake:
             self.snake.pop()  # normal move → drop tail
-        if shrink and self.snake:
-            self.snake.pop()  # red apple → shrink extra
+        elif grew and self.step_by_step:
+            print(
+                f"[Environment] Length update: Grown (green apple), tail not popped. Snake length now: {len(self.snake)}"
+            )
+
+        if shrink and self.snake:  # Red apple effect
+            popped_item_shrink = self.snake.pop()  # red apple → shrink extra
+            if self.step_by_step:
+                print(
+                    f"[Environment] Length update: Shrunk (red apple), tail popped ({popped_item_shrink}). Snake length now: {len(self.snake)}"
+                )
             if not self.snake:  # shrunk away completely
-                return REWARD_DEATH, True, len(self.snake)
+                if self.step_by_step:
+                    print(
+                        f"[Environment] GAME OVER: Snake shrunk to nothing. Final Reward: {REWARD_DEATH}, Final Score: {len(self.snake)}"
+                    )
+                return REWARD_DEATH, True, len(self.snake)  # Score is 0
 
         # 4. Wall / body collision (after tail possibly removed)
-        if self.is_collision():
+        if (
+            self.is_collision()
+        ):  # is_collision should check self.head against walls and self.snake[1:]
+            if self.step_by_step:
+                # You might want to add more detail in is_collision itself or get detail from it
+                print(
+                    f"[Environment] GAME OVER: Collision detected at head position {self.head}. Snake: {self.snake}. Final Reward: {REWARD_DEATH}, Final Score: {len(self.snake)}"
+                )
             return REWARD_DEATH, True, len(self.snake)
 
-        # 5. Starvation check (uses final length)
-        if self.frames_since_food > STARVE_FACTOR * len(self.snake):
+        starvation_limit = (
+            STARVE_FACTOR * len(self.snake) if self.snake else STARVE_FACTOR
+        )  # Handle len(self.snake)=0 case for limit
+        if self.frames_since_food > starvation_limit:
+            if self.step_by_step:
+                print(
+                    f"[Environment] GAME OVER: Starvation. Frames since food ({self.frames_since_food}) > limit ({STARVE_FACTOR} * {len(self.snake)} = {starvation_limit}). Final Reward: {REWARD_DEATH}, Final Score: {len(self.snake)}"
+                )
             return REWARD_DEATH, True, len(self.snake)
+
+        if self.step_by_step:
+            print(
+                f"[Environment] Step finished successfully. Reward: {reward}, Game Over: False, Score: {len(self.snake)}"
+            )
 
         return reward, False, len(self.snake)
 

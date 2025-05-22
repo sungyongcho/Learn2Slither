@@ -20,7 +20,7 @@ BOARD_WIDTH: int = 10
 BOARD_HEIGHT: int = 10
 
 GREEN_APPLE_COUNT: int = 2  # simultaneous green apples
-STARVE_FACTOR: int = 100  # frames before starvation per body length
+STARVE_FACTOR: int = 50  # frames before starvation per body length
 
 BLOCK_SIZE = 40  # pixels per tile
 
@@ -50,7 +50,7 @@ class Colors:
 MAX_MEMORY: int = 100_000
 BATCH_SIZE: int = 1000
 LR: float = 0.001
-SPEED: int = 20
+SPEED: int = 2
 
 
 REWARD_LIVING_STEP: int = 0

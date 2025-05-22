@@ -126,6 +126,16 @@ class Agent:
         for dx, dy in directions:
             state.append(will_collide(dx, dy))  # 16-19
 
+        if self.step_by_step:
+            # Format the state list:
+            # - Floats that are whole numbers (e.g., 1.0) are formatted as integers (e.g., "1")
+            # - Other floats are formatted to 6 decimal places
+            formatted_state = [
+                str(int(x)) if x == int(x) else f"{x:.6f}" for x in state
+            ]
+            print(
+                f"[Agent] Got state of the current game [{', '.join(formatted_state)}]"
+            )
         return np.asarray(state, dtype=np.float32)
 
     def remember(
@@ -166,27 +176,75 @@ class Agent:
         Determines the next action using an epsilon-greedy strategy.
         Epsilon decays exponentially with the number of games played.
         """
+        action_names = ["straight", "right_turn", "left_turn"]
+
         # Calculate current epsilon based on exponential decay
         # Epsilon starts at self.initial_epsilon and decays towards self.min_epsilon
+        calculated_epsilon_val = self.config.initial_epsilon * (
+            self.config.epsilon_decay**self.num_games
+        )
         self.epsilon = max(
             self.config.min_epsilon,
-            self.config.initial_epsilon * (self.config.epsilon_decay**self.num_games),
+            calculated_epsilon_val,
         )
-        move: list = [0, 0, 0]  # [straight, right_turn, left_turn]
 
-        if (
-            random.random() < self.epsilon
-        ):  # random.random() gives float between 0.0 and 1.0
+        if self.step_by_step:
+            print(
+                f"[Agent] Epsilon calculation: initial_eps={self.config.initial_epsilon}, "
+                f"min_eps={self.config.min_epsilon}, decay={self.config.epsilon_decay}, "
+                f"num_games={self.num_games} -> calculated_raw_eps={calculated_epsilon_val:.6f} -> "
+                f"current_epsilon={self.epsilon:.6f}"
+            )
+
+        move: list[int] = [0, 0, 0]  # [straight, right_turn, left_turn]
+        random_roll = random.random()  # random.random() gives float between 0.0 and 1.0
+
+        if self.step_by_step:
+            print(
+                f"[Agent] Epsilon check: random_roll={random_roll:.6f} vs current_epsilon={self.epsilon:.6f}"
+            )
+
+        if random_roll < self.epsilon:
             # Explore: take a random action
-            move[random.randint(0, 2)] = 1
+            if self.step_by_step:
+                print("[Agent] Action choice: EXPLORE (random_roll < epsilon)")
+
+            action_idx = random.randint(0, 2)
+            move[action_idx] = 1
+
+            if self.step_by_step:
+                chosen_action_name = action_names[action_idx]
+                print(
+                    f"[Agent] Random action chosen: {chosen_action_name} (index {action_idx}). Move: {move}"
+                )
         else:
+            if self.step_by_step:
+                print("[Agent] Action choice: EXPLOIT (random_roll >= epsilon)")
             # Exploit: take the action with the highest Q-value
             state_tensor = torch.tensor(state, dtype=torch.float)
             prediction = self.model.forward(
                 state_tensor
             )  # self.model(state_tensor) also works
+            if self.step_by_step:
+                q_values = prediction.squeeze(
+                    0
+                ).tolist()  # Remove batch dim if added, convert to list
+                formatted_q_values = [f"{q:.4f}" for q in q_values]
+                q_value_str = ", ".join(
+                    [
+                        f"{name}: {val}"
+                        for name, val in zip(action_names, formatted_q_values)
+                    ]
+                )
+                print(f"[Agent] Model Q-value predictions: [{q_value_str}]")
+
             move_idx: int = torch.argmax(prediction).item()
             move[move_idx] = 1
+            if self.step_by_step:
+                chosen_action_name = action_names[move_idx]
+                print(
+                    f"[Agent] Model chose action: {chosen_action_name} (index {move_idx}). Move: {move}"
+                )
 
         return move
 

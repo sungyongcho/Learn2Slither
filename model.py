@@ -36,8 +36,6 @@ class LinearQNet(nn.Module):
         x = F.relu(self.linear1(x))
         x = self.linear2(x)
         x = self.linear3(x)
-        if self.step_by_step:
-            print("[Step-By-Step] Forward pass done")
         return x
 
 
