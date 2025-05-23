@@ -12,11 +12,17 @@ from constants import (
     REWARD_DEATH,
     REWARD_GREEN_APPLE,
     REWARD_LIVING_STEP,
+    REWARD_NEAREST_CLOSER,
+    REWARD_NEAREST_FURTHER,
     REWARD_RED_APPLE,
     STARVE_FACTOR,
     Direction,
     Pos,
 )
+
+
+def manhattan(a: Pos, b: Pos) -> int:
+    return abs(a.x - b.x) + abs(a.y - b.y)
 
 
 class Environment:
@@ -33,6 +39,12 @@ class Environment:
         self.step_by_step: bool = step_by_step
 
         self.reset()
+
+    def _nearest_green_distance(self) -> int:
+        """Return L1-distance from point to the closest green apple."""
+        if not self.green_apples:  # failsafe – should not happen
+            return 0
+        return min(manhattan(self.head, g) for g in self.green_apples)
 
     def reset(self) -> None:
         """Return the board to its initial state."""
@@ -59,6 +71,7 @@ class Environment:
         self._place_green_apples()  # Ensure this can always place apples
         self.frame: int = 0
         self.frames_since_food: int = 0
+        self.prev_dist = self._nearest_green_distance()
 
     def step(
         self,
@@ -100,6 +113,8 @@ class Environment:
                 f"[Environment] Movement: Action '{action_name}' led to new head position: {self.head}."
             )
 
+        cur_dist = self._nearest_green_distance()
+
         grew = shrink = False
         reward = REWARD_LIVING_STEP
         if self.step_by_step:
@@ -133,6 +148,20 @@ class Environment:
             if self.step_by_step:
                 print(
                     f"[Environment] Green apples updated. Current green apples: {len(self.green_apples)} positions: {self.green_apples}"
+                )
+            cur_dist = self._nearest_green_distance()  # new target
+        elif cur_dist < self.prev_dist:
+            reward += REWARD_NEAREST_CLOSER
+            if self.step_by_step:
+                print(
+                    f"[Environment] Event: Ate Snake Head got closer to closest green apple. Reward: {reward}."
+                )
+
+        elif cur_dist > self.prev_dist:
+            reward += REWARD_NEAREST_FURTHER
+            if self.step_by_step:
+                print(
+                    f"[Environment] Event: Ate Snake Head got further to closest green apple. Reward: {reward}."
                 )
 
         # 3. Update length ──────────────
@@ -182,6 +211,7 @@ class Environment:
                 f"[Environment] Step finished successfully. Reward: {reward}, Game Over: False, Score: {len(self.snake)}"
             )
 
+        self.prev_dist = cur_dist
         return reward, False, len(self.snake)
 
     def _random_empty_tile(self) -> Pos:
