@@ -185,6 +185,11 @@ def play(cfg: Config) -> None:
 
             if target_game is not None and agent.num_games >= target_game:
                 print("[INFO] Target sessions reached")
+                if cfg.save_path:
+                    print(
+                        f"[INFO] Model saved to {cfg.save_path} (after {agent.num_games} games)"
+                    )
+                    agent.save(str(cfg.save_path))
                 break
 
 

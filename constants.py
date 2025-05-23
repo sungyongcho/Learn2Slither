@@ -70,5 +70,5 @@ class RLConfig:
     gamma: float = 0.90
     lr: float = LR
     initial_epsilon: float = 1.0
-    min_epsilon: float = 0.01
-    epsilon_decay: float = 0.99
+    min_epsilon: float = 0.05
+    epsilon_decay: float = 0.995
