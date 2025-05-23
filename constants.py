@@ -53,11 +53,11 @@ SPEED: int = 20
 
 
 REWARD_LIVING_STEP: int = -0.05
-REWARD_GREEN_APPLE: int = 50
+REWARD_GREEN_APPLE: int = 10
 REWARD_NEAREST_CLOSER: int = 0.2
 REWARD_NEAREST_FURTHER: int = -0.2
-REWARD_RED_APPLE: int = -25
-REWARD_DEATH: int = -100
+REWARD_RED_APPLE: int = -10
+REWARD_DEATH: int = -10
 STARVE_FACTOR: int = 50  # frames before starvation per body length
 
 

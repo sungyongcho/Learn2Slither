@@ -180,9 +180,8 @@ class Agent:
 
         # Calculate current epsilon based on exponential decay
         # Epsilon starts at self.initial_epsilon and decays towards self.min_epsilon
-        calculated_epsilon_val = self.config.initial_epsilon * (
-            self.config.epsilon_decay**self.num_games
-        )
+        calculated_epsilon_val = self.config.initial_epsilon * self.config.epsilon_decay
+
         self.epsilon = max(
             self.config.min_epsilon,
             calculated_epsilon_val,
