@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Dict, Tuple
+from typing import Any, Optional
 
 import torch
 
@@ -34,17 +34,19 @@ def load(
     hidden1_size: int,
     hidden2_size: int,
     output_size: int,
+    model: Optional[LinearQNet] = None,
     optim=None,
-    step_by_step=False,
-) -> Tuple[LinearQNet, Dict[str, Any]]:
-    model = LinearQNet(
-        input_size,
-        hidden1_size,
-        hidden2_size,
-        output_size,
-        step_by_step,
-    )
-    extras: Dict[str, Any] = {}
+    step_by_step: bool = False,
+) -> tuple[LinearQNet, dict[str, Any]]:
+    if model is None:
+        model = LinearQNet(
+            input_size,
+            hidden1_size,
+            hidden2_size,
+            output_size,
+            step_by_step,
+        )
+    extras: dict[str, Any] = {}
 
     if path is None:
         return model, extras

@@ -63,15 +63,17 @@ class QTrainer:
 
         # 1) current Q‑values
         pred = self.model(state)
+
         target = pred.clone()
+
+        with torch.no_grad():
+            next_pred = self.model(next_state)
 
         # 2) target computation
         for i in range(len(done)):
             q_new = reward[i]
             if not done[i]:
-                q_new = reward[i] + self.gamma * torch.max(
-                    self.model(next_state[i].detach())
-                )
+                q_new = reward[i] + self.gamma * torch.max(next_pred[i])
             act_idx = torch.argmax(action[i]).item()
             target[i][act_idx] = q_new
 

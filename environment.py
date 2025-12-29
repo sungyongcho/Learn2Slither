@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -48,39 +47,51 @@ class Environment:
 
     def reset(self) -> None:
         """Return the board to its initial state."""
-        self.direction: Direction = random.choice(list(Direction))
+        # [수정 1] 초기 방향 랜덤 설정을 제거합니다. (마지막에 결정)
+        # self.direction: Direction = random.choice(list(Direction))
+
+        # [수정 2] 벽 충돌 방지를 위해 x좌표 시작 범위를 0에서 1로 변경합니다.
+        # 이렇게 하면 head가 1일 때 왼쪽(0)으로 이동해도 벽에 부딪히지 않습니다.
         self.head: Pos = Pos(
-            random.randint(0, self.width - 3),  # Ensure space for initial
+            random.randint(1, self.width - 3),
             random.randint(0, self.height - 3),
         )
-        self.snake: List[Pos] = [
+
+        # [수정 3] 몸통 배치를 위한 방향(dx) 결정
+        # head.x > 1이면 왼쪽(-1)으로 몸통 배치, 아니면 오른쪽(1)으로 배치
+        dx = -1 if self.head.x > 1 else 1
+
+        self.snake: list[Pos] = [
             self.head,
-            Pos(
-                self.head.x - 1 if self.head.x > 0 else self.head.x + 1,
-                self.head.y,
-            ),
-            Pos(
-                self.head.x - 2 if self.head.x > 1 else self.head.x + 2,
-                self.head.y,
-            ),
+            Pos(self.head.x + dx, self.head.y),  # 첫 번째 몸통
+            Pos(self.head.x + 2 * dx, self.head.y),  # 두 번째 몸통
         ]
 
-        self.red_apple: Optional[Pos] = None
-        self.green_apples: List[Pos] = []
+        # [수정 4] 뱀이 몸통 반대쪽(정면)을 보게 하여 '자살' 방지
+        # dx가 -1(몸통이 왼쪽)이면 -> 머리는 오른쪽(RIGHT)을 봄
+        # dx가 1(몸통이 오른쪽)이면 -> 머리는 왼쪽(LEFT)을 봄
+        if dx == -1:
+            self.direction = Direction.RIGHT
+        else:
+            self.direction = Direction.LEFT
+
+        # --- 이후 로직은 기존과 동일 ---
+        self.red_apple: list[Pos] = None
+        self.green_apples: list[Pos] = []
         self._place_red_apple()
-        self._place_green_apples()  # Ensure this can always place apples
+        self._place_green_apples()
         self.frame: int = 0
         self.frames_since_food: int = 0
         self.prev_dist = self._nearest_green_distance()
 
     def step(
         self,
-        action: Union[np.ndarray, List[int]],
-    ) -> Tuple[int, bool, int]:
+        action: np.ndarray | list[int],
+    ) -> tuple[int, bool, int]:
         """Advance one tick. Return (learning_reward, game_over, display_score)."""
 
         def get_action_name(
-            action_vec: Union[np.ndarray, List[int]],
+            action_vec: np.ndarray | list[int],
         ) -> str:  # Helper method
             if isinstance(action_vec, np.ndarray):
                 action_vec = action_vec.tolist()
@@ -249,7 +260,7 @@ class Environment:
             # _random_empty_tile needs to be robust.
             self.green_apples.append(self._random_empty_tile())
 
-    def is_collision(self, pt: Optional[Pos] = None) -> bool:
+    def is_collision(self, pt: Pos | None = None) -> bool:
         """Checks for collision at point pt. If pt is None, checks current head."""
         check_point = pt if pt is not None else self.head
 
@@ -278,7 +289,7 @@ class Environment:
 
         return False
 
-    def _move(self, action: Union[np.ndarray, List[int]]) -> None:
+    def _move(self, action: np.ndarray | list[int]) -> None:
         """Update the head position based on action."""
         # action is [straight, right_turn, left_turn]
         # e.g., [1,0,0] is straight, [0,1,0] is right, [0,0,1] is left

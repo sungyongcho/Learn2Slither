@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Tuple
 
 
 class Direction(Enum):
@@ -24,26 +23,26 @@ GREEN_APPLE_COUNT: int = 2  # simultaneous green apples
 BLOCK_SIZE = 40  # pixels per tile
 
 # RGB colours
-WHITE: Tuple[int, int, int] = (255, 255, 255)
-RED: Tuple[int, int, int] = (200, 0, 0)
-GREEN: Tuple[int, int, int] = (0, 200, 0)
-BLUE1: Tuple[int, int, int] = (0, 0, 255)
-BLUE2: Tuple[int, int, int] = (0, 100, 255)
-BLACK: Tuple[int, int, int] = (0, 0, 0)
+WHITE: tuple[int, int, int] = (255, 255, 255)
+RED: tuple[int, int, int] = (200, 0, 0)
+GREEN: tuple[int, int, int] = (0, 200, 0)
+BLUE1: tuple[int, int, int] = (0, 0, 255)
+BLUE2: tuple[int, int, int] = (0, 100, 255)
+BLACK: tuple[int, int, int] = (0, 0, 0)
 
 
 class Colors:
-    WHITE: Tuple[int, int, int] = (255, 255, 255)
-    RED: Tuple[int, int, int] = (200, 0, 0)
-    GREEN: Tuple[int, int, int] = (0, 200, 0)
-    GRAY: Tuple[int, int, int] = (128, 128, 128)
-    BLUE1: Tuple[int, int, int] = (0, 0, 255)
-    BLUE2: Tuple[int, int, int] = (0, 100, 255)
-    BLACK: Tuple[int, int, int] = (0, 0, 0)
-    YELLOW1: Tuple[int, int, int] = (255, 212, 0)  # outer
-    YELLOW2: Tuple[int, int, int] = (255, 240, 120)  # inner highlight
-    RED1: Tuple[int, int, int] = (200, 30, 30)  # dark red body
-    RED2: Tuple[int, int, int] = (255, 100, 100)  # light red inner square
+    WHITE: tuple[int, int, int] = (255, 255, 255)
+    RED: tuple[int, int, int] = (200, 0, 0)
+    GREEN: tuple[int, int, int] = (0, 200, 0)
+    GRAY: tuple[int, int, int] = (128, 128, 128)
+    BLUE1: tuple[int, int, int] = (0, 0, 255)
+    BLUE2: tuple[int, int, int] = (0, 100, 255)
+    BLACK: tuple[int, int, int] = (0, 0, 0)
+    YELLOW1: tuple[int, int, int] = (255, 212, 0)  # outer
+    YELLOW2: tuple[int, int, int] = (255, 240, 120)  # inner highlight
+    RED1: tuple[int, int, int] = (200, 30, 30)  # dark red body
+    RED2: tuple[int, int, int] = (255, 100, 100)  # light red inner square
 
 
 MAX_MEMORY: int = 100_000

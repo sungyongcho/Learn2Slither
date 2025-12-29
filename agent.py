@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import random
 from collections import deque
-from typing import Optional
+import random
 
 import numpy as np
 import torch
@@ -10,7 +9,7 @@ import torch
 from checkpoint import load, save
 from constants import BATCH_SIZE, LR, MAX_MEMORY, Direction, Pos, RLConfig
 from environment import Environment
-from model import QTrainer
+from model import LinearQNet, QTrainer
 
 
 class Agent:
@@ -21,21 +20,33 @@ class Agent:
         step_by_step: bool = False,
     ) -> None:
         self.config: RLConfig = config
-        self.memory = deque(maxlen=MAX_MEMORY)  # popleft() when full
+        self.memory = deque(maxlen=MAX_MEMORY)
         self.num_games: int = 0
-        self.epsilon: float = self.config.initial_epsilon  # Current epsilon
         self.step_by_step: bool = step_by_step
-        self.model, extras = load(
-            load_path,
+
+        self.model = LinearQNet(
             config.input_size,
             config.hidden1_size,
             config.hidden2_size,
             config.output_size,
-            optim=None,
             step_by_step=step_by_step,
         )
-        self.__dict__.update(extras)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.config.gamma)
+
+        self.epsilon: float = self.config.initial_epsilon
+
+        if load_path:
+            _, extras = load(
+                load_path,
+                config.input_size,
+                config.hidden1_size,
+                config.hidden2_size,
+                config.output_size,
+                model=self.model,  # 생성한 모델 전달
+                optim=self.trainer.optimizer,  # 생성한 옵티마이저 전달
+                step_by_step=step_by_step,
+            )
+            self.__dict__.update(extras)  # 저장된 epsilon, num_games 등 업데이트
 
     def get_state(self: Agent, env: Environment) -> np.ndarray:
         """
@@ -79,7 +90,7 @@ class Agent:
                 return hy / (H - 1)
             return 0.0
 
-        def item_dist(dx: int, dy: int, item: Optional[Pos]) -> float:
+        def item_dist(dx: int, dy: int, item: Pos | None) -> float:
             if item is None:
                 return 1.0
             ix, iy = item.x, item.y
@@ -107,20 +118,45 @@ class Agent:
             nx, ny = hx + dx, hy + dy
             return float(nx < 0 or nx >= W or ny < 0 or ny >= H or (nx, ny) in body_set)
 
-        # nearest green apple (if any)
-        green_closest = min(
-            env.green_apples,
-            key=lambda a: abs(a.x - hx) + abs(a.y - hy),
-            default=None,
-        )
+        def get_closest_apple_in_dir(
+            dx: int,
+            dy: int,
+            apples: list[Pos],
+        ) -> Optional[Pos]:
+            best = None
+            best_dist = float("inf")
+            for apple in apples:
+                ix, iy = apple.x, apple.y
+                if dx != 0:
+                    if iy != hy:
+                        continue
+                    if (ix - hx) * dx <= 0:
+                        continue
+                else:
+                    if ix != hx:
+                        continue
+                    if (iy - hy) * dy <= 0:
+                        continue
+
+                dist = abs(ix - hx) + abs(iy - hy)
+                if dist < best_dist:
+                    best_dist = dist
+                    best = apple
+            return best
 
         state: list[float] = []
         for dx, dy in directions:
             state.append(wall_dist(dx, dy))  # 0-3
         for dx, dy in directions:
-            state.append(item_dist(dx, dy, green_closest))  # 4-7
+            target = get_closest_apple_in_dir(dx, dy, env.green_apples)
+            state.append(item_dist(dx, dy, target))  # 4-7
         for dx, dy in directions:
-            state.append(item_dist(dx, dy, env.red_apple))  # 8-11
+            red_target = (
+                get_closest_apple_in_dir(dx, dy, [env.red_apple])
+                if env.red_apple
+                else None
+            )
+            state.append(item_dist(dx, dy, red_target))  # 8-11
         for dx, dy in directions:
             state.append(body_dist(dx, dy))  # 12-15
         for dx, dy in directions:
@@ -180,7 +216,9 @@ class Agent:
 
         # Calculate current epsilon based on exponential decay
         # Epsilon starts at self.initial_epsilon and decays towards self.min_epsilon
-        calculated_epsilon_val = self.config.initial_epsilon * (self.config.epsilon_decay ** self.num_games)
+        calculated_epsilon_val = self.config.initial_epsilon * (
+            self.config.epsilon_decay**self.num_games
+        )
 
         self.epsilon = max(
             self.config.min_epsilon,
