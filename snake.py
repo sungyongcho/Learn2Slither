@@ -23,10 +23,6 @@ from environment import Environment
 from game_interface import PygameInterface
 from plot_graph import plot as plot_scores
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CLI → runtime config
-# ──────────────────────────────────────────────────────────────────────────────
-
 
 @dataclass
 class Config:
@@ -40,15 +36,11 @@ class Config:
     plot: bool = False
     step_by_step: bool = False
 
-    # helper ---------------------------------------------------------------
     @property
     def plotting_enabled(self) -> bool:
         return self.plot  # purely controlled by --plot flag
 
 
-# -----------------------------------------------------------------------------
-# CLI parsing
-# -----------------------------------------------------------------------------
 
 
 def parse_args() -> Config:
@@ -62,7 +54,6 @@ def parse_args() -> Config:
         "--save", type=Path, help="Path to save model when a new record is hit"
     )
 
-    # visualize expects the literal strings true / false
     p.add_argument(
         "--visualize",
         choices=["true", "false"],
@@ -70,7 +61,6 @@ def parse_args() -> Config:
         help="true/false: enable Pygame visualisation",
     )
 
-    # --plot works like --dontlearn: presence ⇒ True, absence ⇒ False
     p.add_argument("--plot", action="store_true", help="Show live score plot")
 
     p.add_argument(
@@ -120,7 +110,7 @@ def play(cfg: Config) -> None:
     record = 0
 
     agent = Agent(
-        RLConfig(  # <-- create config
+        RLConfig(
             initial_epsilon=0.0 if not cfg.learn else 1.0,
             min_epsilon=0.0 if not cfg.learn else 0.01,
         ),
@@ -140,7 +130,6 @@ def play(cfg: Config) -> None:
     board = Environment(step_by_step=cfg.step_by_step)
     gui = PygameInterface(board) if cfg.visualize else None
 
-    # ----- main loop ---------------------------------------------------------
     while True:
         state_old = agent.get_state(board)
         action = agent.get_action(state_old)
@@ -191,11 +180,6 @@ def play(cfg: Config) -> None:
                     )
                     agent.save(str(cfg.save_path))
                 break
-
-
-# -----------------------------------------------------------------------------
-# Entry point
-# -----------------------------------------------------------------------------
 
 
 def main() -> None:

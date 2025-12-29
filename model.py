@@ -11,7 +11,7 @@ import torch.optim as optim
 # --------------------------------------------------------------------------- #
 class LinearQNet(nn.Module):
     """
-    A simple 3‑layer fully‑connected network used as the Q‑function
+    A simple 3-layer fully-connected network used as the Q-function
     approximator.
 
     Architecture: input →  hidden  →  hidden//2  →  output
