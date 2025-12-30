@@ -39,44 +39,36 @@ class Environment:
 
         self.reset()
 
+    def _log(self, msg: str) -> None:
+        if self.step_by_step:
+            print(msg)
+
     def _nearest_green_distance(self) -> int:
         """Return L1-distance from point to the closest green apple."""
         if not self.green_apples:  # failsafe – should not happen
             return 0
         return min(manhattan(self.head, g) for g in self.green_apples)
 
+    def _starvation_limit(self) -> int:
+        return STARVE_FACTOR * len(self.snake) if self.snake else STARVE_FACTOR
+
     def reset(self) -> None:
         """Return the board to its initial state."""
-        # [수정 1] 초기 방향 랜덤 설정을 제거합니다. (마지막에 결정)
-        # self.direction: Direction = random.choice(list(Direction))
-
-        # [수정 2] 벽 충돌 방지를 위해 x좌표 시작 범위를 0에서 1로 변경합니다.
-        # 이렇게 하면 head가 1일 때 왼쪽(0)으로 이동해도 벽에 부딪히지 않습니다.
         self.head: Pos = Pos(
             random.randint(1, self.width - 3),
             random.randint(0, self.height - 3),
         )
-
-        # [수정 3] 몸통 배치를 위한 방향(dx) 결정
-        # head.x > 1이면 왼쪽(-1)으로 몸통 배치, 아니면 오른쪽(1)으로 배치
         dx = -1 if self.head.x > 1 else 1
 
         self.snake: list[Pos] = [
             self.head,
-            Pos(self.head.x + dx, self.head.y),  # 첫 번째 몸통
-            Pos(self.head.x + 2 * dx, self.head.y),  # 두 번째 몸통
+            Pos(self.head.x + dx, self.head.y),
+            Pos(self.head.x + 2 * dx, self.head.y),
         ]
 
-        # [수정 4] 뱀이 몸통 반대쪽(정면)을 보게 하여 '자살' 방지
-        # dx가 -1(몸통이 왼쪽)이면 -> 머리는 오른쪽(RIGHT)을 봄
-        # dx가 1(몸통이 오른쪽)이면 -> 머리는 왼쪽(LEFT)을 봄
-        if dx == -1:
-            self.direction = Direction.RIGHT
-        else:
-            self.direction = Direction.LEFT
+        self.direction = Direction.RIGHT if dx == -1 else Direction.LEFT
 
-        # --- 이후 로직은 기존과 동일 ---
-        self.red_apple: list[Pos] = None
+        self.red_apple: Pos | None = None
         self.green_apples: list[Pos] = []
         self._place_red_apple()
         self._place_green_apples()
@@ -84,33 +76,102 @@ class Environment:
         self.frames_since_food: int = 0
         self.prev_dist = self._nearest_green_distance()
 
+    @staticmethod
+    def _action_name(action_vec: np.ndarray | list[int]) -> str:
+        if isinstance(action_vec, np.ndarray):
+            action_vec = action_vec.tolist()
+        if action_vec == [1, 0, 0]:
+            return "straight"
+        if action_vec == [0, 1, 0]:
+            return "right_turn"
+        if action_vec == [0, 0, 1]:
+            return "left_turn"
+        return str(action_vec)
+
+    def _handle_apples(
+        self,
+        reward: float,
+        cur_dist: int,
+    ) -> tuple[float, bool, bool, int]:
+        grew = shrink = False
+
+        if self.red_apple and self.head == self.red_apple:
+            eaten_red = self.red_apple
+            reward = REWARD_RED_APPLE
+            self._place_red_apple()
+            self.frames_since_food = 0
+            shrink = True
+            self._log(
+                f"[Environment] Event: Ate RED apple at {eaten_red}. Reward: {reward}. "
+                f"Frames since food reset. Flagged to shrink."
+            )
+            self._log(
+                f"[Environment] New red apple placed at: {self.red_apple if self.red_apple else 'None (no space?)'}"
+            )
+
+        elif self.head in self.green_apples:
+            self.green_apples.remove(self.head)
+            reward = REWARD_GREEN_APPLE
+            self.frames_since_food = 0
+            grew = True
+            self._log(
+                f"[Environment] Event: Ate GREEN apple at {self.head}. Reward: {reward}. "
+                f"Frames since food reset. Flagged to grow."
+            )
+            self._place_green_apples()
+            self._log(
+                f"[Environment] Green apples updated. Current green apples: {len(self.green_apples)} positions: {self.green_apples}"
+            )
+            cur_dist = self._nearest_green_distance()
+
+        elif cur_dist < self.prev_dist:
+            reward += REWARD_NEAREST_CLOSER
+            self._log(
+                f"[Environment] Event: Snake head got closer to closest green apple. Reward: {reward}."
+            )
+
+        elif cur_dist > self.prev_dist:
+            reward += REWARD_NEAREST_FURTHER
+            self._log(
+                f"[Environment] Event: Snake head got further from closest green apple. Reward: {reward}."
+            )
+
+        return reward, grew, shrink, cur_dist
+
+    def _update_length(self, grew: bool, shrink: bool) -> bool:
+        if not grew and self.snake:
+            self.snake.pop()
+        elif grew:
+            self._log(
+                f"[Environment] Length update: Grown (green apple), tail not popped. Snake length now: {len(self.snake)}"
+            )
+
+        if shrink and self.snake:
+            popped_item = self.snake.pop()
+            self._log(
+                f"[Environment] Length update: Shrunk (red apple), tail popped ({popped_item}). Snake length now: {len(self.snake)}"
+            )
+            if not self.snake:
+                self._log(
+                    f"[Environment] GAME OVER: Snake shrunk to nothing. Final Reward: {REWARD_DEATH}, Final Score: {len(self.snake)}"
+                )
+                return True
+        return False
+
     def step(
         self,
         action: np.ndarray | list[int],
     ) -> tuple[int, bool, int]:
         """Advance one tick. Return (learning_reward, game_over, display_score)."""
 
-        def get_action_name(
-            action_vec: np.ndarray | list[int],
-        ) -> str:  # Helper method
-            if isinstance(action_vec, np.ndarray):
-                action_vec = action_vec.tolist()
-            if action_vec == [1, 0, 0]:
-                return "straight"
-            if action_vec == [0, 1, 0]:
-                return "right_turn"
-            if action_vec == [0, 0, 1]:
-                return "left_turn"
-            return str(action_vec)
-
-        action_name = get_action_name(action)  # Get readable action name
-        if self.step_by_step:
-            print(
-                f"[Environment] Frame: {self.frame + 1}, Frames since food: {self.frames_since_food + 1}, Received action: {action_name} ({action})"
-            )
-            print(
-                f"[Environment] Current snake head: {self.head}, Snake length: {len(self.snake)}"
-            )
+        action_name = self._action_name(action)
+        self._log(
+            f"[Environment] Frame: {self.frame + 1}, Frames since food: {self.frames_since_food + 1}, "
+            f"Received action: {action_name} ({action})"
+        )
+        self._log(
+            f"[Environment] Current snake head: {self.head}, Snake length: {len(self.snake)}"
+        )
 
         self.frame += 1
         self.frames_since_food += 1
@@ -119,108 +180,41 @@ class Environment:
         self._move(action)
         self.snake.insert(0, self.head)  # new head at index 0
 
-        if self.step_by_step:
-            print(
-                f"[Environment] Movement: Action '{action_name}' led to new head position: {self.head}."
-            )
+        self._log(
+            f"[Environment] Movement: Action '{action_name}' led to new head position: {self.head}."
+        )
 
         cur_dist = self._nearest_green_distance()
 
-        grew = shrink = False
         reward = REWARD_LIVING_STEP
-        if self.step_by_step:
-            print(f"[Environment] Initial reward for step: {reward}")
+        self._log(f"[Environment] Initial reward for step: {reward}")
+        reward, grew, shrink, cur_dist = self._handle_apples(reward, cur_dist)
 
-        # 2. Apple checks ────────────────
-        if self.red_apple and self.head == self.red_apple:
-            reward = REWARD_RED_APPLE
-            self._place_red_apple()
-            if self.step_by_step:
-                print(
-                    f"[Environment] Event: Ate RED apple at {self.red_apple}. Reward: {reward}. Frames since food reset. Flagged to shrink."
-                )
-            self.frames_since_food = 0
-            shrink = True
-            if self.step_by_step:
-                print(
-                    f"[Environment] New red apple placed at: {self.red_apple if self.red_apple else 'None (no space?)'}"
-                )
-
-        elif self.head in self.green_apples:
-            self.green_apples.remove(self.head)
-            reward = REWARD_GREEN_APPLE
-            self.frames_since_food = 0
-            grew = True
-            if self.step_by_step:
-                print(
-                    f"[Environment] Event: Ate GREEN apple at {self.head}. Reward: {reward}. Frames since food reset. Flagged to grow."
-                )
-            self._place_green_apples()  # This should attempt to maintain apple count
-            if self.step_by_step:
-                print(
-                    f"[Environment] Green apples updated. Current green apples: {len(self.green_apples)} positions: {self.green_apples}"
-                )
-            cur_dist = self._nearest_green_distance()  # new target
-        elif cur_dist < self.prev_dist:
-            reward += REWARD_NEAREST_CLOSER
-            if self.step_by_step:
-                print(
-                    f"[Environment] Event: Ate Snake Head got closer to closest green apple. Reward: {reward}."
-                )
-
-        elif cur_dist > self.prev_dist:
-            reward += REWARD_NEAREST_FURTHER
-            if self.step_by_step:
-                print(
-                    f"[Environment] Event: Ate Snake Head got further to closest green apple. Reward: {reward}."
-                )
-
-        # 3. Update length ──────────────
-        if not grew and self.snake:
-            self.snake.pop()  # normal move → drop tail
-        elif grew and self.step_by_step:
-            print(
-                f"[Environment] Length update: Grown (green apple), tail not popped. Snake length now: {len(self.snake)}"
-            )
-
-        if shrink and self.snake:  # Red apple effect
-            popped_item_shrink = self.snake.pop()  # red apple → shrink extra
-            if self.step_by_step:
-                print(
-                    f"[Environment] Length update: Shrunk (red apple), tail popped ({popped_item_shrink}). Snake length now: {len(self.snake)}"
-                )
-            if not self.snake:  # shrunk away completely
-                if self.step_by_step:
-                    print(
-                        f"[Environment] GAME OVER: Snake shrunk to nothing. Final Reward: {REWARD_DEATH}, Final Score: {len(self.snake)}"
-                    )
-                return REWARD_DEATH, True, len(self.snake)  # Score is 0
+        if self._update_length(grew, shrink):
+            return REWARD_DEATH, True, len(self.snake)
 
         # 4. Wall / body collision (after tail possibly removed)
         if (
             self.is_collision()
         ):  # is_collision should check self.head against walls and self.snake[1:]
-            if self.step_by_step:
-                # You might want to add more detail in is_collision itself or get detail from it
-                print(
-                    f"[Environment] GAME OVER: Collision detected at head position {self.head}. Snake: {self.snake}. Final Reward: {REWARD_DEATH}, Final Score: {len(self.snake)}"
-                )
-            return REWARD_DEATH, True, len(self.snake)
-
-        starvation_limit = (
-            STARVE_FACTOR * len(self.snake) if self.snake else STARVE_FACTOR
-        )  # Handle len(self.snake)=0 case for limit
-        if self.frames_since_food > starvation_limit:
-            if self.step_by_step:
-                print(
-                    f"[Environment] GAME OVER: Starvation. Frames since food ({self.frames_since_food}) > limit ({STARVE_FACTOR} * {len(self.snake)} = {starvation_limit}). Final Reward: {REWARD_DEATH}, Final Score: {len(self.snake)}"
-                )
-            return REWARD_DEATH, True, len(self.snake)
-
-        if self.step_by_step:
-            print(
-                f"[Environment] Step finished successfully. Reward: {reward}, Game Over: False, Score: {len(self.snake)}"
+            self._log(
+                f"[Environment] GAME OVER: Collision detected at head position {self.head}. "
+                f"Snake: {self.snake}. Final Reward: {REWARD_DEATH}, Final Score: {len(self.snake)}"
             )
+            return REWARD_DEATH, True, len(self.snake)
+
+        starvation_limit = self._starvation_limit()
+        if self.frames_since_food > starvation_limit:
+            self._log(
+                f"[Environment] GAME OVER: Starvation. Frames since food ({self.frames_since_food}) > "
+                f"limit ({STARVE_FACTOR} * {len(self.snake)} = {starvation_limit}). "
+                f"Final Reward: {REWARD_DEATH}, Final Score: {len(self.snake)}"
+            )
+            return REWARD_DEATH, True, len(self.snake)
+
+        self._log(
+            f"[Environment] Step finished successfully. Reward: {reward}, Game Over: False, Score: {len(self.snake)}"
+        )
 
         self.prev_dist = cur_dist
         return reward, False, len(self.snake)

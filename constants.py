@@ -51,13 +51,13 @@ LR: float = 0.001
 SPEED: int = 20
 
 
-REWARD_LIVING_STEP: int = -0.05
+REWARD_LIVING_STEP: float = -0.02
 REWARD_GREEN_APPLE: int = 10
-REWARD_NEAREST_CLOSER: int = 0.2
-REWARD_NEAREST_FURTHER: int = -0.2
-REWARD_RED_APPLE: int = -10
+REWARD_NEAREST_CLOSER: float = 0.3
+REWARD_NEAREST_FURTHER: float = -0.3
+REWARD_RED_APPLE: int = -18
 REWARD_DEATH: int = -10
-STARVE_FACTOR: int = 50  # frames before starvation per body length
+STARVE_FACTOR: int = 70  # frames before starvation per body length
 
 
 @dataclass

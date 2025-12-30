@@ -64,7 +64,7 @@ class QTrainer:
         # 1) current Q‑values
         pred = self.model(state)
 
-        target = pred.clone()
+        target = pred.detach().clone()
 
         with torch.no_grad():
             next_pred = self.model(next_state)
