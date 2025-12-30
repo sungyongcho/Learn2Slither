@@ -55,7 +55,9 @@ class PygameInterface:
                 pygame.draw.rect(
                     self.display,
                     body_color_2,
-                    pygame.Rect(seg.x * bs + 4, seg.y * bs + 4, bs - 8, bs - 8),
+                    pygame.Rect(
+                        seg.x * bs + 4, seg.y * bs + 4, bs - 8, bs - 8
+                    ),
                 )
 
             # head
@@ -109,7 +111,9 @@ class PygameInterface:
 
         # ── score & flip ───────────────────
         self.display.blit(
-            self.font.render(f"Length: {len(self.board.snake)}", True, Colors.WHITE),
+            self.font.render(
+                f"Length: {len(self.board.snake)}", True, Colors.WHITE
+            ),
             (0, 0),
         )
         pygame.display.flip()

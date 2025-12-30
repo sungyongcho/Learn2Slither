@@ -1,33 +1,25 @@
 from __future__ import annotations
 
-"""Main entry‑point for training or evaluating the Snake RL agent.
+"""Main entry-point for training or evaluating the Snake RL agent.
 
 Usage examples
 --------------
 $ python play.py                           # train, visualise, no plot
-$ python play.py --visualize false         # head‑less training
-$ python play.py --plot                    # show live score plot while training
+$ python play.py --visualize false         # headless training
+$ python play.py --plot                    # live score plot while training
 $ python play.py --dontlearn --load best.pth  # greedy evaluation, no plot
 """
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 
-import matplotlib.pyplot as plt
-
-from agent import Agent
-from constants import SPEED, RLConfig
-from environment import Environment
-from game_interface import PygameInterface
-from plot_graph import plot as plot_scores
+from config_loader import Config as RunConfig, load_config
 
 
 @dataclass
 class Config:
-    """Immutable run‑time configuration produced by :func:`parse_args`."""
-
     sessions: int = 0  # 0 == unlimited
     load_path: Optional[Path] = None
     save_path: Optional[Path] = None
@@ -35,19 +27,23 @@ class Config:
     learn: bool = True
     plot: bool = False
     step_by_step: bool = False
+    config_path: Optional[Path] = None
 
     @property
     def plotting_enabled(self) -> bool:
         return self.plot  # purely controlled by --plot flag
 
 
-
-
 def parse_args() -> Config:
-    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
     p.add_argument(
-        "--session", type=int, default=0, help="Episodes to run (0 = unlimited)"
+        "--session",
+        type=int,
+        default=0,
+        help="Episodes to run (0 = unlimited)",
     )
     p.add_argument("--load", type=Path, help="Path to .pth checkpoint to load")
     p.add_argument(
@@ -74,6 +70,11 @@ def parse_args() -> Config:
         action="store_true",
         help="Verbose Step-By-Step console output",
     )
+    p.add_argument(
+        "--config",
+        type=Path,
+        help="Path to YAML config (defaults to configs/default.yaml)",
+    )
 
     ns = p.parse_args()
     if ns.dontlearn and ns.save:
@@ -96,10 +97,18 @@ def parse_args() -> Config:
         learn=not ns.dontlearn,
         plot=ns.plot,
         step_by_step=ns.step_by_step,
+        config_path=ns.config,
     )
 
 
-def play(cfg: Config) -> None:
+def play(cfg: Config, run_cfg: RunConfig) -> None:
+    import matplotlib.pyplot as plt
+
+    from agent import Agent
+    from environment import Environment
+    from game_interface import PygameInterface
+    from plot_graph import plot as plot_scores
+
     if cfg.plotting_enabled:
         plt.ion()
         _ = plt.figure()
@@ -109,11 +118,15 @@ def play(cfg: Config) -> None:
 
     record = 0
 
+    agent_cfg = run_cfg.agent
+    if not cfg.learn:
+        agent_cfg = replace(
+            agent_cfg, initial_epsilon=0.0, min_epsilon=0.0
+        )
+
     agent = Agent(
-        RLConfig(
-            initial_epsilon=0.0 if not cfg.learn else 1.0,
-            min_epsilon=0.0 if not cfg.learn else 0.01,
-        ),
+        agent_cfg,
+        run_cfg.training,
         load_path=str(cfg.load_path) if cfg.load_path else None,
         step_by_step=cfg.step_by_step,
     )
@@ -123,11 +136,16 @@ def play(cfg: Config) -> None:
 
     if cfg.load_path and cfg.sessions:
         print(
-            f"[INFO] Resumed at game {start_game}. "
-            f"Will play {cfg.sessions} more → stop at {target_game}."
+            "[INFO] Resumed at game "
+            f"{start_game}. Will play {cfg.sessions} more → "
+            f"stop at {target_game}."
         )
 
-    board = Environment(step_by_step=cfg.step_by_step)
+    board = Environment(
+        reward_cfg=run_cfg.reward,
+        env_cfg=run_cfg.env,
+        step_by_step=cfg.step_by_step,
+    )
     gui = PygameInterface(board) if cfg.visualize else None
 
     while True:
@@ -149,7 +167,7 @@ def play(cfg: Config) -> None:
         if gui:
             gui._handle_pygame_events()
             gui._render(dead=done)
-            gui.clock.tick(SPEED)
+            gui.clock.tick(run_cfg.gui.speed)
 
         if done:
             board.reset()
@@ -162,9 +180,14 @@ def play(cfg: Config) -> None:
                     if cfg.save_path:
                         agent.save(str(cfg.save_path))
                     else:
-                        print("[WARN] New record but no --save path given → not saved")
+                        print(
+                            "[WARN] New record but no --save path given "
+                            "→ not saved"
+                        )
 
-            print(f"Game {agent.num_games:<4}  Length {length:<4}  Record {record}")
+            print(
+                f"Game {agent.num_games:<4} Length {length:<4} Record {record}"
+            )
 
             if cfg.plotting_enabled:
                 scores.append(length)
@@ -176,7 +199,8 @@ def play(cfg: Config) -> None:
                 print("[INFO] Target sessions reached")
                 if cfg.save_path:
                     print(
-                        f"[INFO] Model saved to {cfg.save_path} (after {agent.num_games} games)"
+                        "[INFO] Model saved to "
+                        f"{cfg.save_path} (after {agent.num_games} games)"
                     )
                     agent.save(str(cfg.save_path))
                 break
@@ -185,12 +209,15 @@ def play(cfg: Config) -> None:
 def main() -> None:
     cfg = parse_args()
 
+    cfg_path = cfg.config_path or Path("configs/default.yaml")
+    run_cfg = load_config(cfg_path)
+
     print("\n── Configuration ─────────────────────────────────────────────")
     for k, v in cfg.__dict__.items():
         print(f"{k:>15}: {v}")
     print("──────────────────────────────────────────────────────────────\n")
 
-    play(cfg)
+    play(cfg, run_cfg)
 
 
 if __name__ == "__main__":

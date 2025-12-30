@@ -1,9 +1,10 @@
 {
-  "editor.defaultFormatter": "ms-python.black-formatter",
   "editor.formatOnSave": true,
   "editor.rulers": [79],
   "editor.insertSpaces": true,
   "editor.tabSize": 4,
   "flake8.importStrategy": "fromEnvironment",
-  "flake8.args": ["--config", "${workspaceFolder}/pyproject.toml"]
+  "ruff.enable": true,
+  "ruff.lint.enable": false,
+  "flake8.enabled": true
 }

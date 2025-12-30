@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from collections import deque
 import random
+from collections import deque
 
 import numpy as np
 import torch
 
 from checkpoint import load, save
-from constants import BATCH_SIZE, MAX_MEMORY, Direction, Pos, RLConfig
+from constants import Direction, Pos
+from config_loader import AgentConfig, TrainingConfig
 from environment import Environment
 from model import LinearQNet, QTrainer
 
@@ -17,12 +18,14 @@ class Agent:
 
     def __init__(
         self: Agent,
-        config: RLConfig,
+        config: AgentConfig,
+        training: TrainingConfig,
         load_path: str | None = None,
         step_by_step: bool = False,
     ) -> None:
-        self.config: RLConfig = config
-        self.memory = deque(maxlen=MAX_MEMORY)
+        self.config: AgentConfig = config
+        self.training: TrainingConfig = training
+        self.memory = deque(maxlen=self.training.max_memory)
         self.num_games: int = 0
         self.step_by_step: bool = step_by_step
 
@@ -48,7 +51,7 @@ class Agent:
         return model, trainer
 
     def _load_checkpoint(
-        self: Agent, load_path: str | None, step_by_step: bool
+            self: Agent, load_path: str | None, step_by_step: bool
     ) -> None:
         if not load_path:
             return
@@ -173,7 +176,9 @@ class Agent:
         body_set: set[tuple[int, int]],
     ) -> float:
         nx, ny = hx + dx, hy + dy
-        return float(nx < 0 or nx >= W or ny < 0 or ny >= H or (nx, ny) in body_set)
+        return float(
+            nx < 0 or nx >= W or ny < 0 or ny >= H or (nx, ny) in body_set
+        )
 
     @staticmethod
     def _one_hot_action(idx: int) -> list[int]:
@@ -183,14 +188,17 @@ class Agent:
 
     @staticmethod
     def _format_state_for_log(state: list[float]) -> str:
-        formatted_state = [str(int(x)) if x == int(x) else f"{x:.6f}" for x in state]
+        formatted_state = [
+            str(int(x)) if x == int(x) else f"{x:.6f}" for x in state
+        ]
         return ", ".join(formatted_state)
 
     def _log_q_values(self: Agent, prediction: torch.Tensor) -> None:
         q_values = prediction.squeeze(0).tolist()
         formatted_q_values = [f"{q:.4f}" for q in q_values]
         q_value_str = ", ".join(
-            f"{name}: {val}" for name, val in zip(self.ACTION_NAMES, formatted_q_values)
+            f"{name}: {val}"
+            for name, val in zip(self.ACTION_NAMES, formatted_q_values)
         )
         print(f"[Agent] Model Q-value predictions: [{q_value_str}]")
 
@@ -211,7 +219,8 @@ class Agent:
             self._log_q_values(prediction)
             chosen_action_name = self.ACTION_NAMES[move_idx]
             print(
-                f"[Agent] Model chose action: {chosen_action_name} (index {move_idx}). Move: {move}"
+                "[Agent] Model chose action: "
+                f"{chosen_action_name} (index {move_idx}). Move: {move}"
             )
         return move
 
@@ -219,36 +228,44 @@ class Agent:
         self: Agent, raw_eps: float, epsilon: float, random_roll: float
     ) -> None:
         print(
-            f"[Agent] Epsilon calculation: initial_eps={self.config.initial_epsilon}, "
-            f"min_eps={self.config.min_epsilon}, decay={self.config.epsilon_decay}, "
-            f"num_games={self.num_games} -> calculated_raw_eps={raw_eps:.6f} -> "
+            "[Agent] Epsilon calculation: "
+            f"initial_eps={self.config.initial_epsilon}, "
+            f"min_eps={self.config.min_epsilon}, "
+            f"decay={self.config.epsilon_decay}, "
+            f"num_games={self.num_games} -> "
+            f"calculated_raw_eps={raw_eps:.6f} -> "
             f"current_epsilon={epsilon:.6f}"
         )
         print(
-            f"[Agent] Epsilon check: random_roll={random_roll:.6f} vs current_epsilon={epsilon:.6f}"
+            "[Agent] Epsilon check: "
+            f"random_roll={random_roll:.6f} vs current_epsilon={epsilon:.6f}"
         )
 
     def _log_explore(self: Agent, action_idx: int, move: list[int]) -> None:
         chosen_action_name = self.ACTION_NAMES[action_idx]
         print(
             f"[Agent] Action choice: EXPLORE (random_roll < epsilon). "
-            f"Random action chosen: {chosen_action_name} (index {action_idx}). Move: {move}"
+            f"Random action chosen: {chosen_action_name} "
+            f"(index {action_idx}). Move: {move}"
         )
 
     def get_state(self: Agent, env: Environment) -> np.ndarray:
         """
-        20-float vector in [F, B, L, R] order relative to the snake’s current heading:
+        24-float vector in [F, B, L, R] order relative to the snake’s
+        current heading:
             0-3   wall distance
             4-7   green-apple distance   (nearest one)
             8-11  red-apple  distance
             12-15 body distance
             16-19 collision-on-next-step (0/1)
+            20-23 first-body-is-tail (0/1)
         """
         W, H = env.width, env.height
         head: Pos = env.head
         hx, hy = head.x, head.y
         head_dir: Direction = env.direction
         body_set = {(p.x, p.y) for p in env.snake[1:]}  # exclude head
+        tail_cells = set(env.snake[-2:]) if len(env.snake) >= 2 else set()
 
         directions = self._direction_vectors(head_dir)  # [F, B, L, R]
 
@@ -256,23 +273,47 @@ class Agent:
         for dx, dy in directions:
             state.append(self._wall_distance(W, H, hx, hy, dx, dy))  # 0-3
         for dx, dy in directions:
-            target = self._closest_apple_in_dir(hx, hy, dx, dy, env.green_apples)
-            state.append(self._item_distance(W, H, hx, hy, dx, dy, target))  # 4-7
+            target = self._closest_apple_in_dir(
+                hx, hy, dx, dy, env.green_apples
+            )
+            state.append(
+                self._item_distance(W, H, hx, hy, dx, dy, target)
+            )  # 4-7
         for dx, dy in directions:
             red_target = (
                 self._closest_apple_in_dir(hx, hy, dx, dy, [env.red_apple])
                 if env.red_apple
                 else None
             )
-            state.append(self._item_distance(W, H, hx, hy, dx, dy, red_target))  # 8-11
+            state.append(
+                self._item_distance(W, H, hx, hy, dx, dy, red_target)
+            )  # 8-11
         for dx, dy in directions:
-            state.append(self._body_distance(W, H, hx, hy, dx, dy, body_set))  # 12-15
+            state.append(
+                self._body_distance(W, H, hx, hy, dx, dy, body_set)
+            )  # 12-15
         for dx, dy in directions:
-            state.append(self._collision_flag(W, H, hx, hy, dx, dy, body_set))  # 16-19
+            state.append(
+                self._collision_flag(W, H, hx, hy, dx, dy, body_set)
+            )  # 16-19
+        for dx, dy in directions:
+            x, y = hx, hy
+            seen_tail = 0.0
+            while True:
+                x += dx
+                y += dy
+                if x < 0 or x >= W or y < 0 or y >= H:
+                    break
+                if (x, y) in body_set:
+                    if (x, y) in tail_cells:
+                        seen_tail = 1.0
+                    break
+            state.append(seen_tail)  # 20-23
 
         if self.step_by_step:
             print(
-                f"[Agent] Got state of the current game [{self._format_state_for_log(state)}]"
+                "[Agent] Got state of the current game "
+                f"[{self._format_state_for_log(state)}]"
             )
         return np.asarray(state, dtype=np.float32)
 
@@ -289,8 +330,10 @@ class Agent:
 
     def train_long_memory(self: Agent) -> None:
         """Trains the Q-network on a batch of experiences from memory."""
-        if len(self.memory) > BATCH_SIZE:
-            mini_sample = random.sample(self.memory, BATCH_SIZE)  # list of tuples
+        if len(self.memory) > self.training.batch_size:
+            mini_sample = random.sample(
+                self.memory, self.training.batch_size
+            )
         else:
             mini_sample = self.memory
 

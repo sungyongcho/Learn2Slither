@@ -18,11 +18,10 @@ class Pos:
 BOARD_WIDTH: int = 10
 BOARD_HEIGHT: int = 10
 
-GREEN_APPLE_COUNT: int = 2  # simultaneous green apples
+GREEN_APPLE_COUNT: int = 2
 
-BLOCK_SIZE = 40  # pixels per tile
+BLOCK_SIZE = 40
 
-# RGB colours
 WHITE: tuple[int, int, int] = (255, 255, 255)
 RED: tuple[int, int, int] = (200, 0, 0)
 GREEN: tuple[int, int, int] = (0, 200, 0)
@@ -39,35 +38,7 @@ class Colors:
     BLUE1: tuple[int, int, int] = (0, 0, 255)
     BLUE2: tuple[int, int, int] = (0, 100, 255)
     BLACK: tuple[int, int, int] = (0, 0, 0)
-    YELLOW1: tuple[int, int, int] = (255, 212, 0)  # outer
-    YELLOW2: tuple[int, int, int] = (255, 240, 120)  # inner highlight
-    RED1: tuple[int, int, int] = (200, 30, 30)  # dark red body
-    RED2: tuple[int, int, int] = (255, 100, 100)  # light red inner square
-
-
-MAX_MEMORY: int = 100_000
-BATCH_SIZE: int = 1000
-LR: float = 0.001
-SPEED: int = 20
-
-
-REWARD_LIVING_STEP: float = -0.02
-REWARD_GREEN_APPLE: int = 10
-REWARD_NEAREST_CLOSER: float = 0.3
-REWARD_NEAREST_FURTHER: float = -0.3
-REWARD_RED_APPLE: int = -18
-REWARD_DEATH: int = -10
-STARVE_FACTOR: int = 70  # frames before starvation per body length
-
-
-@dataclass
-class RLConfig:
-    input_size: int = 20
-    hidden1_size: int = 256
-    hidden2_size: int = 128
-    output_size: int = 3
-    gamma: float = 0.90
-    lr: float = LR
-    initial_epsilon: float = 1.0
-    min_epsilon: float = 0.05
-    epsilon_decay: float = 0.995
+    YELLOW1: tuple[int, int, int] = (255, 212, 0)
+    YELLOW2: tuple[int, int, int] = (255, 240, 120)
+    RED1: tuple[int, int, int] = (200, 30, 30)
+    RED2: tuple[int, int, int] = (255, 100, 100)

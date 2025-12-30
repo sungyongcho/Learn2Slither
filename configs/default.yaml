@@ -1,0 +1,29 @@
+training:
+  max_memory: 100000
+  batch_size: 1000
+  lr: 0.001
+
+gui:
+  speed: 20 # not a parameter for training, but for visualization only
+
+env:
+  starve_factor: 70
+
+reward:
+  living_step: -0.02
+  green_apple: 10
+  nearest_closer: 0.3
+  nearest_further: -0.3
+  red_apple: -18
+  death: -10
+
+agent:
+  input_size: 24
+  hidden1_size: 256
+  hidden2_size: 128
+  output_size: 3
+  gamma: 0.9
+  lr: 0.001
+  initial_epsilon: 1.0
+  min_epsilon: 0.05
+  epsilon_decay: 0.995
