@@ -7,8 +7,8 @@ import numpy as np
 import torch
 
 from checkpoint import load, save
-from constants import Direction, Pos
 from config_loader import AgentConfig, TrainingConfig
+from constants import Direction, Pos
 from environment import Environment
 from model import LinearQNet, QTrainer
 
@@ -51,7 +51,7 @@ class Agent:
         return model, trainer
 
     def _load_checkpoint(
-            self: Agent, load_path: str | None, step_by_step: bool
+        self: Agent, load_path: str | None, step_by_step: bool
     ) -> None:
         if not load_path:
             return
@@ -331,9 +331,7 @@ class Agent:
     def train_long_memory(self: Agent) -> None:
         """Trains the Q-network on a batch of experiences from memory."""
         if len(self.memory) > self.training.batch_size:
-            mini_sample = random.sample(
-                self.memory, self.training.batch_size
-            )
+            mini_sample = random.sample(self.memory, self.training.batch_size)
         else:
             mini_sample = self.memory
 
@@ -349,14 +347,9 @@ class Agent:
         next_state: np.array,
         done: bool,
     ) -> None:
-        """Trains the Q-network on a single (the most recent) experience."""
         self.trainer.train_step(state, action, reward, next_state, done)
 
     def get_action(self: Agent, state: np.array) -> list[int]:
-        """
-        Determines the next action using an epsilon-greedy strategy.
-        Epsilon decays exponentially with the number of games played.
-        """
         raw_eps, epsilon = self._update_epsilon()
         random_roll = random.random()
 

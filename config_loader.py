@@ -72,6 +72,7 @@ class RewardConfig:
     nearest_further: float
     red_apple: float
     death: float
+    trapped: float
 
     @staticmethod
     def from_dict(d: dict[str, Any]) -> "RewardConfig":
@@ -84,6 +85,7 @@ class RewardConfig:
                 "nearest_further",
                 "red_apple",
                 "death",
+                "trapped",
             },
             where="reward",
         )
@@ -94,6 +96,7 @@ class RewardConfig:
             nearest_further=float(d["nearest_further"]),
             red_apple=float(d["red_apple"]),
             death=float(d["death"]),
+            trapped=float(d["trapped"]),
         )
 
 

@@ -4,7 +4,7 @@ training:
   lr: 0.001
 
 gui:
-  speed: 20 # not a parameter for training, but for visualization only
+  speed: 10 # not a parameter for training, but for visualization only
 
 env:
   starve_factor: 70
@@ -14,8 +14,9 @@ reward:
   green_apple: 10
   nearest_closer: 0.3
   nearest_further: -0.3
-  red_apple: -18
-  death: -10
+  red_apple: -30
+  death: -100
+  trapped: -5
 
 agent:
   input_size: 24

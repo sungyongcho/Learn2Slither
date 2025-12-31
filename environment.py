@@ -156,6 +156,30 @@ class Environment:
 
         return reward, grew, shrink, cur_dist
 
+    def _count_reachable_empty(self) -> int:
+        from collections import deque
+
+        obstacles = set(self.snake + self.green_apples)
+        if self.red_apple:
+            obstacles.add(self.red_apple)
+        visited = set(obstacles)
+
+        queue = deque([self.head])
+        visited.add(self.head)
+        count = 0
+
+        while queue:
+            curr = queue.popleft()
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                nx, ny = curr.x + dx, curr.y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    npos = Pos(nx, ny)
+                    if npos not in visited:
+                        visited.add(npos)
+                        queue.append(npos)
+                        count += 1
+        return count
+
     def _update_length(self, grew: bool, shrink: bool) -> bool:
         if not grew and self.snake:
             self.snake.pop()
@@ -256,6 +280,21 @@ class Environment:
                 )
             )
             return self.reward_cfg.death, True, len(self.snake)
+
+        total_empty = (self.width * self.height) - len(self.snake)
+        if self.red_apple:
+            total_empty -= 1
+        total_empty -= len(self.green_apples)
+
+        reachable_empty = self._count_reachable_empty()
+        if reachable_empty < total_empty:
+            penalty = self.reward_cfg.trapped
+            reward += penalty
+            self._log(
+                "[Space] Trapped! Reachable: "
+                f"{reachable_empty} < Total: {total_empty}. "
+                f"Penalty: {penalty}"
+            )
 
         self._log(
             (
