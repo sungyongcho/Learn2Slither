@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 
-def plot(scores, mean_scores):
+def plot(scores: list[int], mean_scores: list[float]) -> None:
     plt.clf()
     plt.title("Training")
     plt.xlabel("Number of games")

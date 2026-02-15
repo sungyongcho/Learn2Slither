@@ -1,21 +1,22 @@
-from __future__ import annotations
-
 """Main entry-point for training or evaluating the Snake RL agent.
 
 Usage examples
 --------------
-$ python play.py                           # train, visualise, no plot
-$ python play.py --visualize false         # headless training
-$ python play.py --plot                    # live score plot while training
-$ python play.py --dontlearn --load best.pth  # greedy evaluation, no plot
+$ python snake.py --session 100 --visualize true
+$ python snake.py --session 100 --visualize false
+$ python snake.py --session 100 --plot
+$ python snake.py --session 10 --dontlearn --load model/1000.pth
 """
+
+from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 
-from config_loader import Config as RunConfig, load_config
+from config_loader import Config as RunConfig
+from config_loader import load_config
 
 
 @dataclass
@@ -120,9 +121,7 @@ def play(cfg: Config, run_cfg: RunConfig) -> None:
 
     agent_cfg = run_cfg.agent
     if not cfg.learn:
-        agent_cfg = replace(
-            agent_cfg, initial_epsilon=0.0, min_epsilon=0.0
-        )
+        agent_cfg = replace(agent_cfg, initial_epsilon=0.0, min_epsilon=0.0)
 
     agent = Agent(
         agent_cfg,
@@ -174,7 +173,9 @@ def play(cfg: Config, run_cfg: RunConfig) -> None:
             agent.num_games += 1
 
             if cfg.learn:
-                agent.train_long_memory()
+                repeat_times = max(3, length // 10)
+                for _ in range(repeat_times):
+                    agent.train_long_memory()
                 if length > record:
                     record = length
                     if cfg.save_path:

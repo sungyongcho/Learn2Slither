@@ -16,7 +16,7 @@ reward:
   nearest_further: -0.3
   red_apple: -30
   death: -100
-  trapped: -5
+  trapped: -0.1
 
 agent:
   input_size: 24

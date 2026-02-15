@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Optional
+from typing import Optional
 
 import torch
 
@@ -11,7 +11,7 @@ def save(
     path: str | os.PathLike,
     model: torch.nn.Module,
     optim: torch.optim.Optimizer | None = None,
-    **extra: Any,
+    **extra: object,
 ) -> None:
     """Save *model* (+ optimizer + extras) exactly to *path*."""
     path = os.fspath(path)  # accept Path objects
@@ -35,9 +35,9 @@ def load(
     hidden2_size: int,
     output_size: int,
     model: Optional[LinearQNet] = None,
-    optim=None,
+    optim: torch.optim.Optimizer | None = None,
     step_by_step: bool = False,
-) -> tuple[LinearQNet, dict[str, Any]]:
+) -> tuple[LinearQNet, dict[str, object]]:
     if model is None:
         model = LinearQNet(
             input_size,
@@ -46,7 +46,7 @@ def load(
             output_size,
             step_by_step,
         )
-    extras: dict[str, Any] = {}
+    extras: dict[str, object] = {}
 
     if path is None:
         return model, extras

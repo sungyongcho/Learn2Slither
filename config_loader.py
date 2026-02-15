@@ -22,7 +22,7 @@ def _require_keys(
         )
 
 
-def _require_mapping(v: Any, *, where: str) -> dict[str, Any]:
+def _require_mapping(v: object, *, where: str) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError(f"[ConfigError] {where} must be a mapping/object")
     return v

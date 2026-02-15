@@ -21,6 +21,7 @@ pycodestyle==2.13.0
 pyflakes==3.3.2
 pygame==2.6.1
 pyparsing==3.2.3
+PyYAML==6.0.2
 python-dateutil==2.9.0.post0
 six==1.17.0
 sympy==1.13.3

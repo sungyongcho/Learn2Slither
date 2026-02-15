@@ -1,2 +1,7 @@
 .venv/
 __pycache__/
+.vscode/
+*.png
+*.pt
+*.pth
+.DS_Store

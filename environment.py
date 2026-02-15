@@ -4,6 +4,7 @@ import random
 
 import numpy as np
 
+from config_loader import EnvConfig, RewardConfig
 from constants import (
     BOARD_HEIGHT,
     BOARD_WIDTH,
@@ -11,7 +12,6 @@ from constants import (
     Direction,
     Pos,
 )
-from config_loader import EnvConfig, RewardConfig
 
 
 def manhattan(a: Pos, b: Pos) -> int:
